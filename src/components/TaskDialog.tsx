@@ -19,6 +19,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useTasks } from "@/contexts/TaskContext";
 
 type TaskDialogProps = {
   open: boolean;
@@ -32,6 +33,8 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
   const [hour, setHour] = useState<string>("12");
   const [minute, setMinute] = useState<string>("00");
   const [ampm, setAmPm] = useState<string>("PM");
+  
+  const { addTask } = useTasks();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,14 +48,20 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
     }
 
     // Prepare the full date with time if a date was selected
-    let dueDateTime = null;
+    let dueDateTime = undefined;
     if (date) {
       dueDateTime = new Date(date);
       const hours = parseInt(hour) + (ampm === "PM" && hour !== "12" ? 12 : 0) - (ampm === "AM" && hour === "12" ? 12 : 0);
       dueDateTime.setHours(hours, parseInt(minute), 0);
     }
 
-    // In a real app, you would save this task to a database with the full date/time
+    // Add task to context
+    addTask({
+      name: taskName,
+      description,
+      dueDate: dueDateTime,
+    });
+
     toast({
       title: "Task created",
       description: `Your task has been added successfully${dueDateTime ? ` and is due on ${format(dueDateTime, "PPP 'at' h:mm a")}` : ""}`,

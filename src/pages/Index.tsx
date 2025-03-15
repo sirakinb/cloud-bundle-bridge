@@ -6,9 +6,14 @@ import { File, Mic, Plus } from "lucide-react";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Sidebar, SidebarInset } from "@/components/ui/sidebar";
 import TaskDialog from "@/components/TaskDialog";
+import { useTasks } from "@/contexts/TaskContext";
+import TaskItem from "@/components/TaskItem";
 
 const Index = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const { tasks } = useTasks();
+  
+  const todaysTasks = tasks;
 
   return (
     <div className="flex min-h-screen w-full">
@@ -84,7 +89,15 @@ const Index = () => {
             </div>
             <Card className="transition-all duration-300 hover:shadow-md">
               <CardContent className="p-6">
-                <p className="text-gray-500">No tasks for today</p>
+                {todaysTasks.length === 0 ? (
+                  <p className="text-gray-500">No tasks for today</p>
+                ) : (
+                  <div className="space-y-1">
+                    {todaysTasks.map((task) => (
+                      <TaskItem key={task.id} task={task} />
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
