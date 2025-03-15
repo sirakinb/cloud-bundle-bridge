@@ -8,7 +8,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,8 +16,9 @@ import { toast } from "@/hooks/use-toast";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type TaskDialogProps = {
   open: boolean;
@@ -29,6 +29,9 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
   const [taskName, setTaskName] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState<Date | undefined>(undefined);
+  const [hour, setHour] = useState<string>("12");
+  const [minute, setMinute] = useState<string>("00");
+  const [ampm, setAmPm] = useState<string>("PM");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,18 +44,40 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
       return;
     }
 
-    // In a real app, you would save this task to a database
+    // Prepare the full date with time if a date was selected
+    let dueDateTime = null;
+    if (date) {
+      dueDateTime = new Date(date);
+      const hours = parseInt(hour) + (ampm === "PM" && hour !== "12" ? 12 : 0) - (ampm === "AM" && hour === "12" ? 12 : 0);
+      dueDateTime.setHours(hours, parseInt(minute), 0);
+    }
+
+    // In a real app, you would save this task to a database with the full date/time
     toast({
       title: "Task created",
-      description: "Your task has been added successfully",
+      description: `Your task has been added successfully${dueDateTime ? ` and is due on ${format(dueDateTime, "PPP 'at' h:mm a")}` : ""}`,
     });
 
     // Reset form
     setTaskName("");
     setDescription("");
     setDate(undefined);
+    setHour("12");
+    setMinute("00");
+    setAmPm("PM");
     onOpenChange(false);
   };
+
+  // Generate hours for the select dropdown
+  const hours = Array.from({ length: 12 }, (_, i) => {
+    const hour = i + 1;
+    return hour.toString();
+  });
+
+  // Generate minutes for the select dropdown
+  const minutes = Array.from({ length: 60 }, (_, i) => {
+    return i.toString().padStart(2, "0");
+  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -96,6 +121,7 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
+                    id="due-date"
                     variant={"outline"}
                     className={cn(
                       "col-span-3 justify-start text-left font-normal",
@@ -112,9 +138,56 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
                     selected={date}
                     onSelect={setDate}
                     initialFocus
+                    className="p-3 pointer-events-auto"
                   />
                 </PopoverContent>
               </Popover>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Due Time</Label>
+              <div className="col-span-3 flex space-x-2 items-center">
+                <div className="flex items-center">
+                  <Select value={hour} onValueChange={setHour}>
+                    <SelectTrigger className="w-[70px]">
+                      <SelectValue placeholder="Hour" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {hours.map((h) => (
+                        <SelectItem key={h} value={h}>
+                          {h}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <span className="mx-1">:</span>
+
+                  <Select value={minute} onValueChange={setMinute}>
+                    <SelectTrigger className="w-[70px]">
+                      <SelectValue placeholder="Min" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[200px] overflow-y-auto">
+                      {minutes.map((m) => (
+                        <SelectItem key={m} value={m}>
+                          {m}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Select value={ampm} onValueChange={setAmPm}>
+                  <SelectTrigger className="w-[70px]">
+                    <SelectValue placeholder="AM/PM" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="AM">AM</SelectItem>
+                    <SelectItem value="PM">PM</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Clock className="h-4 w-4 text-gray-400" />
+              </div>
             </div>
           </div>
           <DialogFooter>
