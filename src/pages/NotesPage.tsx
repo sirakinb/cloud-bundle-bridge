@@ -1,16 +1,15 @@
-
 import React, { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { AppSidebar } from "@/components/AppSidebar";
-import { FileText, Mic, Star } from "lucide-react";
+import { FileText, Mic, Star, Save, Edit, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
+import { Textarea } from "@/components/ui/textarea";
 
-// Updated mock data with timestamps and favorite status
 const mockNotes = [
   {
     id: "note-1",
@@ -54,9 +53,10 @@ const NotesPage = () => {
   const [notes, setNotes] = useState(mockNotes);
   const [selectedNote, setSelectedNote] = useState(notes[0]);
   const [activeTab, setActiveTab] = useState("all");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedContent, setEditedContent] = useState("");
   const { toast } = useToast();
 
-  // Filter notes based on active tab
   const filteredNotes = () => {
     switch (activeTab) {
       case "recent":
@@ -68,7 +68,6 @@ const NotesPage = () => {
     }
   };
 
-  // Toggle favorite status
   const toggleFavorite = (noteId: string) => {
     const updatedNotes = notes.map(note => 
       note.id === noteId ? { ...note, favorite: !note.favorite } : note
@@ -76,7 +75,6 @@ const NotesPage = () => {
     
     setNotes(updatedNotes);
     
-    // Update selected note if it's the one being modified
     if (selectedNote.id === noteId) {
       const updatedSelectedNote = updatedNotes.find(note => note.id === noteId);
       if (updatedSelectedNote) {
@@ -84,7 +82,6 @@ const NotesPage = () => {
       }
     }
     
-    // Show toast notification
     const currentNote = notes.find(note => note.id === noteId);
     if (currentNote) {
       const action = currentNote.favorite ? "removed from" : "added to";
@@ -93,6 +90,37 @@ const NotesPage = () => {
         description: `"${currentNote.title}" has been ${action} your favorites`,
       });
     }
+  };
+
+  const handleEdit = () => {
+    setEditedContent(selectedNote.content);
+    setIsEditing(true);
+  };
+
+  const handleSave = () => {
+    const updatedNotes = notes.map(note => 
+      note.id === selectedNote.id ? { ...note, content: editedContent } : note
+    );
+    
+    setNotes(updatedNotes);
+    setSelectedNote({...selectedNote, content: editedContent});
+    setIsEditing(false);
+    
+    toast({
+      title: "Note saved",
+      description: "Your changes have been saved successfully",
+    });
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setEditedContent("");
+    
+    toast({
+      title: "Editing cancelled",
+      description: "Your changes have been discarded",
+      variant: "destructive",
+    });
   };
 
   return (
@@ -190,29 +218,69 @@ const NotesPage = () => {
                             </span>
                           </CardDescription>
                         </div>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className={cn(
-                            "h-9 w-9 animate-spin-hover", 
-                            selectedNote.favorite && "text-yellow-500"
+                        <div className="flex items-center space-x-2">
+                          {!isEditing ? (
+                            <Button 
+                              variant="outline" 
+                              size="icon"
+                              className="h-9 w-9 animate-fade-in"
+                              onClick={handleEdit}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          ) : (
+                            <>
+                              <Button 
+                                variant="outline" 
+                                size="icon"
+                                className="h-9 w-9 text-destructive animate-fade-in"
+                                onClick={handleCancel}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="outline" 
+                                size="icon"
+                                className="h-9 w-9 text-primary animate-fade-in"
+                                onClick={handleSave}
+                              >
+                                <Save className="h-4 w-4" />
+                              </Button>
+                            </>
                           )}
-                          onClick={() => toggleFavorite(selectedNote.id)}
-                        >
-                          <Star 
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
                             className={cn(
-                              "h-5 w-5", 
-                              selectedNote.favorite ? "fill-yellow-500" : ""
-                            )} 
-                          />
-                        </Button>
+                              "h-9 w-9 animate-spin-hover", 
+                              selectedNote.favorite && "text-yellow-500 favorite-star active"
+                            )}
+                            onClick={() => toggleFavorite(selectedNote.id)}
+                          >
+                            <Star 
+                              className={cn(
+                                "h-5 w-5", 
+                                selectedNote.favorite ? "fill-yellow-500" : ""
+                              )} 
+                            />
+                          </Button>
+                        </div>
                       </div>
                     </CardHeader>
                     <Separator />
                     <CardContent className="pt-4">
                       <ScrollArea className="h-[50vh]">
                         <div className="prose prose-sm max-w-none dark:prose-invert">
-                          <p>{selectedNote.content}</p>
+                          {isEditing ? (
+                            <Textarea
+                              value={editedContent}
+                              onChange={(e) => setEditedContent(e.target.value)}
+                              className="min-h-[40vh] w-full p-4 focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+                              placeholder="Edit your note content here..."
+                            />
+                          ) : (
+                            <p>{selectedNote.content}</p>
+                          )}
                         </div>
                       </ScrollArea>
                     </CardContent>
