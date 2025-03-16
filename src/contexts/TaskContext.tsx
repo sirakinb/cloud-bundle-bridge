@@ -6,6 +6,8 @@ export interface Task {
   name: string;
   description: string;
   dueDate?: Date;
+  urgency: 'low' | 'medium' | 'high';
+  difficulty: 'easy' | 'medium' | 'hard';
 }
 
 interface TaskContextType {

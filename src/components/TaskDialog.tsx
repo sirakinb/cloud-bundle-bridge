@@ -16,10 +16,11 @@ import { toast } from "@/hooks/use-toast";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
-import { CalendarIcon, Clock } from "lucide-react";
+import { CalendarIcon, Clock, Flame, HardHat } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useTasks } from "@/contexts/TaskContext";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 type TaskDialogProps = {
   open: boolean;
@@ -33,6 +34,8 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
   const [hour, setHour] = useState<string>("12");
   const [minute, setMinute] = useState<string>("00");
   const [ampm, setAmPm] = useState<string>("PM");
+  const [urgency, setUrgency] = useState<'low' | 'medium' | 'high'>('medium');
+  const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   
   const { addTask } = useTasks();
 
@@ -60,6 +63,8 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
       name: taskName,
       description,
       dueDate: dueDateTime,
+      urgency,
+      difficulty,
     });
 
     toast({
@@ -74,6 +79,8 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
     setHour("12");
     setMinute("00");
     setAmPm("PM");
+    setUrgency('medium');
+    setDifficulty('medium');
     onOpenChange(false);
   };
 
@@ -90,7 +97,7 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[500px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Add New Task</DialogTitle>
@@ -198,6 +205,57 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
                 <Clock className="h-4 w-4 text-gray-400" />
               </div>
             </div>
+
+            {/* Urgency Selection */}
+            <div className="grid grid-cols-4 items-start gap-4">
+              <Label className="text-right pt-2">
+                Urgency <Flame className="inline h-4 w-4 text-red-500" />
+              </Label>
+              <RadioGroup
+                value={urgency}
+                onValueChange={(val) => setUrgency(val as 'low' | 'medium' | 'high')}
+                className="col-span-3 flex space-x-4"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="low" id="urgency-low" />
+                  <Label htmlFor="urgency-low" className="cursor-pointer">Low</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="medium" id="urgency-medium" />
+                  <Label htmlFor="urgency-medium" className="cursor-pointer">Medium</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="high" id="urgency-high" />
+                  <Label htmlFor="urgency-high" className="cursor-pointer">High</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {/* Difficulty Selection */}
+            <div className="grid grid-cols-4 items-start gap-4">
+              <Label className="text-right pt-2">
+                Difficulty <HardHat className="inline h-4 w-4 text-yellow-500" />
+              </Label>
+              <RadioGroup
+                value={difficulty}
+                onValueChange={(val) => setDifficulty(val as 'easy' | 'medium' | 'hard')}
+                className="col-span-3 flex space-x-4"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="easy" id="difficulty-easy" />
+                  <Label htmlFor="difficulty-easy" className="cursor-pointer">Easy</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="medium" id="difficulty-medium" />
+                  <Label htmlFor="difficulty-medium" className="cursor-pointer">Medium</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="hard" id="difficulty-hard" />
+                  <Label htmlFor="difficulty-hard" className="cursor-pointer">Hard</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
           </div>
           <DialogFooter>
             <Button type="submit">Add Task</Button>
