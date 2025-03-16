@@ -31,6 +31,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const root = window.document.documentElement;
+    const body = window.document.body;
     
     // Remove the previous theme class
     root.classList.remove("light", "dark");
@@ -43,6 +44,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // Add a transition class to smooth color changes
     root.classList.add("transition-colors");
     root.style.colorScheme = theme;
+    
+    // Apply the theme to the body element as well for components that might depend on parent inheritance
+    body.dataset.theme = theme;
   }, [theme]);
 
   useEffect(() => {
@@ -55,6 +59,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     
     // Save color scheme to localStorage
     localStorage.setItem("colorScheme", colorScheme);
+    
+    // Apply the color scheme to the data attribute for component-specific styling
+    root.dataset.colorScheme = colorScheme;
   }, [colorScheme]);
 
   return (

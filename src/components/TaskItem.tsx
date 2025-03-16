@@ -4,6 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 import { Check, Clock, Flame, HardHat, Trash2 } from "lucide-react";
 import { Task, useTasks } from "@/contexts/TaskContext";
+import { useTheme } from "@/contexts/ThemeContext";
 
 interface TaskItemProps {
   task: Task;
@@ -11,18 +12,19 @@ interface TaskItemProps {
 
 const TaskItem = ({ task }: TaskItemProps) => {
   const { removeTask, toggleTaskCompletion } = useTasks();
+  const { theme } = useTheme();
 
-  // Map urgency to specific colors
+  // Map urgency to specific colors - now using color variables that change with theme
   const getUrgencyColor = (urgency: string) => {
     switch (urgency) {
       case 'high':
-        return 'text-red-600 bg-red-50';
+        return 'text-destructive bg-destructive/10';
       case 'medium':
-        return 'text-orange-600 bg-orange-50';
+        return 'text-primary bg-primary/10';
       case 'low':
-        return 'text-green-600 bg-green-50';
+        return 'text-accent-foreground bg-accent/50';
       default:
-        return 'text-gray-600 bg-gray-50';
+        return 'text-muted-foreground bg-muted';
     }
   };
 
@@ -30,18 +32,18 @@ const TaskItem = ({ task }: TaskItemProps) => {
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
       case 'hard':
-        return 'text-purple-600 bg-purple-50';
+        return 'text-secondary-foreground bg-secondary/70';
       case 'medium':
-        return 'text-blue-600 bg-blue-50';
+        return 'text-primary bg-primary/20';
       case 'easy':
-        return 'text-teal-600 bg-teal-50';
+        return 'text-accent-foreground bg-accent/30';
       default:
-        return 'text-gray-600 bg-gray-50';
+        return 'text-muted-foreground bg-muted';
     }
   };
 
   return (
-    <div className={`p-4 border rounded-md mb-3 bg-white shadow-sm hover:shadow-md transition-all duration-300 ${task.completed ? 'opacity-70' : ''}`}>
+    <div className={`p-4 border rounded-md mb-3 bg-card text-card-foreground shadow-sm hover:shadow-md transition-all duration-300 ${task.completed ? 'opacity-70' : ''}`}>
       <div className="flex justify-between items-start">
         <div className="flex gap-3">
           <div className="flex items-center pt-0.5">
@@ -49,17 +51,17 @@ const TaskItem = ({ task }: TaskItemProps) => {
               id={`task-${task.id}`}
               checked={task.completed}
               onCheckedChange={() => toggleTaskCompletion(task.id)}
-              className="data-[state=checked]:bg-green-600"
+              className="data-[state=checked]:bg-primary"
             />
           </div>
           <div>
-            <h3 className={`font-medium ${task.completed ? 'line-through text-gray-500' : ''}`}>{task.name}</h3>
+            <h3 className={`font-medium ${task.completed ? 'line-through text-muted-foreground' : ''}`}>{task.name}</h3>
             {task.description && (
-              <p className={`text-sm text-gray-500 mt-1 ${task.completed ? 'line-through' : ''}`}>{task.description}</p>
+              <p className={`text-sm text-muted-foreground mt-1 ${task.completed ? 'line-through' : ''}`}>{task.description}</p>
             )}
             <div className="flex flex-wrap gap-2 mt-2">
               {task.dueDate && (
-                <div className="flex items-center text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded-full">
+                <div className="flex items-center text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
                   <Clock className="h-3 w-3 mr-1" />
                   <span>{format(task.dueDate, "PPP 'at' h:mm a")}</span>
                 </div>
@@ -79,7 +81,7 @@ const TaskItem = ({ task }: TaskItemProps) => {
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+            className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
             onClick={() => removeTask(task.id)}
           >
             <Trash2 className="h-4 w-4" />
