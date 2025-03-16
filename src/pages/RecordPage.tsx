@@ -1,20 +1,23 @@
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Sidebar, SidebarInset } from "@/components/ui/sidebar";
-import { AlertTriangle, Check, Mic, Square } from "lucide-react";
+import { AlertTriangle, Check, Mic, Square, Play, Pause, RotateCcw } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { toast as sonnerToast } from "sonner";
+import { Progress } from "@/components/ui/progress";
 
 const RecordPage = () => {
   const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [recordingInterval, setRecordingInterval] = useState<NodeJS.Timeout | null>(null);
   const [recordingTitle, setRecordingTitle] = useState("");
   const [recordingNotes, setRecordingNotes] = useState("");
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
   const startRecording = () => {
@@ -28,12 +31,14 @@ const RecordPage = () => {
     }
 
     setIsRecording(true);
+    setIsPaused(false);
     
     // Setup interval to update recording time
     const interval = setInterval(() => {
       setRecordingTime(prev => prev + 1);
     }, 1000);
     
+    intervalRef.current = interval;
     setRecordingInterval(interval);
     
     sonnerToast("Recording Started", {
@@ -41,22 +46,88 @@ const RecordPage = () => {
     });
   };
   
+  const pauseRecording = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    
+    setIsPaused(true);
+    
+    sonnerToast("Recording Paused", {
+      description: "Your recording has been paused",
+    });
+  };
+  
+  const resumeRecording = () => {
+    setIsPaused(false);
+    
+    // Resume the interval
+    const interval = setInterval(() => {
+      setRecordingTime(prev => prev + 1);
+    }, 1000);
+    
+    intervalRef.current = interval;
+    
+    sonnerToast("Recording Resumed", {
+      description: "Your recording has been resumed",
+    });
+  };
+  
   const stopRecording = () => {
-    if (recordingInterval) {
-      clearInterval(recordingInterval);
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
     }
     
     setIsRecording(false);
+    setIsPaused(false);
     
     toast({
       title: "Recording Saved",
       description: `Your recording "${recordingTitle}" has been saved.`,
     });
     
-    // Reset form after saving
+    // Don't reset form after stopping to allow for review
+  };
+  
+  const restartRecording = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    
+    setRecordingTime(0);
+    
+    // Start a new interval
+    const interval = setInterval(() => {
+      setRecordingTime(prev => prev + 1);
+    }, 1000);
+    
+    intervalRef.current = interval;
+    setIsPaused(false);
+    
+    sonnerToast("Recording Restarted", {
+      description: "Your recording has been restarted",
+    });
+  };
+  
+  const resetRecording = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    
+    setIsRecording(false);
+    setIsPaused(false);
     setRecordingTime(0);
     setRecordingTitle("");
     setRecordingNotes("");
+    
+    toast({
+      title: "Recording Reset",
+      description: "All recording data has been cleared.",
+    });
   };
   
   // Format seconds to mm:ss
@@ -115,21 +186,65 @@ const RecordPage = () => {
                 {isRecording ? (
                   <>
                     <div className="flex items-center justify-center w-24 h-24 rounded-full bg-red-100 mb-4 relative">
-                      <div className="absolute inset-0 rounded-full bg-red-400 animate-pulse opacity-50"></div>
+                      <div className={`absolute inset-0 rounded-full bg-red-400 ${isPaused ? '' : 'animate-pulse'} opacity-50`}></div>
                       <div className="z-10 text-red-600 font-mono text-xl font-semibold">
                         {formatTime(recordingTime)}
                       </div>
                     </div>
-                    <p className="text-red-600 font-medium text-lg mb-6">Recording in progress...</p>
-                    <Button 
-                      variant="destructive"
-                      size="lg"
-                      className="flex items-center gap-2 hover-glow glow-red" 
-                      onClick={stopRecording}
-                    >
-                      <Square className="h-4 w-4" />
-                      Stop Recording
-                    </Button>
+                    
+                    {/* Progress bar */}
+                    <div className="w-full max-w-md mb-6">
+                      <Progress value={100} className="h-2" />
+                    </div>
+                    
+                    <p className={`text-${isPaused ? 'amber' : 'red'}-600 font-medium text-lg mb-4`}>
+                      {isPaused ? 'Recording paused' : 'Recording in progress...'}
+                    </p>
+                    
+                    {/* Recording control buttons */}
+                    <div className="flex flex-wrap gap-3 justify-center mb-6">
+                      {isPaused ? (
+                        <Button 
+                          variant="default"
+                          size="lg"
+                          className="bg-green-600 hover:bg-green-700 flex items-center gap-2 hover-glow glow-green" 
+                          onClick={resumeRecording}
+                        >
+                          <Play className="h-4 w-4" />
+                          Resume
+                        </Button>
+                      ) : (
+                        <Button 
+                          variant="outline"
+                          size="lg"
+                          className="flex items-center gap-2 hover-glow" 
+                          onClick={pauseRecording}
+                        >
+                          <Pause className="h-4 w-4" />
+                          Pause
+                        </Button>
+                      )}
+                      
+                      <Button 
+                        variant="outline"
+                        size="lg"
+                        className="flex items-center gap-2 hover-glow glow-blue" 
+                        onClick={restartRecording}
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                        Restart
+                      </Button>
+                      
+                      <Button 
+                        variant="destructive"
+                        size="lg"
+                        className="flex items-center gap-2 hover-glow glow-red" 
+                        onClick={stopRecording}
+                      >
+                        <Square className="h-4 w-4" />
+                        Stop
+                      </Button>
+                    </div>
                   </>
                 ) : (
                   <>
@@ -146,6 +261,20 @@ const RecordPage = () => {
                       <Mic className="h-4 w-4" />
                       Start Recording
                     </Button>
+                    
+                    {recordingTime > 0 && (
+                      <div className="mt-4">
+                        <p className="text-sm text-gray-600 mb-2">Previous recording: {formatTime(recordingTime)}</p>
+                        <Button 
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center gap-2" 
+                          onClick={resetRecording}
+                        >
+                          Clear
+                        </Button>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
