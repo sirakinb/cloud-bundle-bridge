@@ -2,10 +2,13 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 
 type Theme = "light" | "dark";
+type ColorScheme = "default" | "pastel-green" | "pastel-blue" | "pastel-purple" | "pastel-peach";
 
 interface ThemeContextType {
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  colorScheme: ColorScheme;
+  setColorScheme: (colorScheme: ColorScheme) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -18,6 +21,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     
     return (savedTheme || (prefersDark ? "dark" : "light"));
+  });
+
+  const [colorScheme, setColorScheme] = useState<ColorScheme>(() => {
+    // Check if color scheme is stored in localStorage
+    const savedColorScheme = localStorage.getItem("colorScheme") as ColorScheme | null;
+    return (savedColorScheme || "default");
   });
 
   useEffect(() => {
@@ -36,8 +45,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     root.style.colorScheme = theme;
   }, [theme]);
 
+  useEffect(() => {
+    const root = window.document.documentElement;
+    
+    // Remove all color scheme classes
+    root.classList.remove("color-default", "color-pastel-green", "color-pastel-blue", "color-pastel-purple", "color-pastel-peach");
+    // Add the current color scheme class
+    root.classList.add(`color-${colorScheme}`);
+    
+    // Save color scheme to localStorage
+    localStorage.setItem("colorScheme", colorScheme);
+  }, [colorScheme]);
+
   return (
-    <ThemeContext.Provider value={{ theme, setTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme, colorScheme, setColorScheme }}>
       {children}
     </ThemeContext.Provider>
   );

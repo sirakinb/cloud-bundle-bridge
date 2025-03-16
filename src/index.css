@@ -83,6 +83,99 @@
     --sidebar-border: 240 3.7% 18%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
+  
+  /* Pastel Green Theme */
+  .color-pastel-green {
+    --primary: 90 72% 72%;
+    --primary-foreground: 90 30% 15%;
+    --secondary: 90 40% 92%;
+    --secondary-foreground: 90 30% 15%;
+    --accent: 90 40% 85%;
+    --accent-foreground: 90 30% 15%;
+    --border: 90 30% 85%;
+    --ring: 90 60% 50%;
+  }
+  
+  /* Pastel Blue Theme */
+  .color-pastel-blue {
+    --primary: 210 80% 65%;
+    --primary-foreground: 210 30% 15%;
+    --secondary: 210 40% 92%;
+    --secondary-foreground: 210 30% 15%;
+    --accent: 210 40% 85%;
+    --accent-foreground: 210 30% 15%;
+    --border: 210 30% 85%;
+    --ring: 210 60% 50%;
+  }
+  
+  /* Pastel Purple Theme */
+  .color-pastel-purple {
+    --primary: 270 70% 70%;
+    --primary-foreground: 270 30% 15%;
+    --secondary: 270 40% 92%;
+    --secondary-foreground: 270 30% 15%;
+    --accent: 270 40% 85%;
+    --accent-foreground: 270 30% 15%;
+    --border: 270 30% 85%;
+    --ring: 270 60% 50%;
+  }
+  
+  /* Pastel Peach Theme */
+  .color-pastel-peach {
+    --primary: 25 90% 65%;
+    --primary-foreground: 25 30% 15%;
+    --secondary: 25 40% 92%;
+    --secondary-foreground: 25 30% 15%;
+    --accent: 25 40% 85%;
+    --accent-foreground: 25 30% 15%;
+    --border: 25 30% 85%;
+    --ring: 25 60% 50%;
+  }
+
+  /* Dark mode versions of color schemes */
+  .dark.color-pastel-green {
+    --primary: 90 60% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 90 15% 25%;
+    --secondary-foreground: 0 0% 98%;
+    --accent: 90 15% 30%;
+    --accent-foreground: 0 0% 98%;
+    --border: 90 20% 30%;
+    --ring: 90 65% 60%;
+  }
+  
+  .dark.color-pastel-blue {
+    --primary: 210 70% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 15% 25%;
+    --secondary-foreground: 0 0% 98%;
+    --accent: 210 15% 30%;
+    --accent-foreground: 0 0% 98%;
+    --border: 210 20% 30%;
+    --ring: 210 65% 60%;
+  }
+  
+  .dark.color-pastel-purple {
+    --primary: 270 60% 65%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 270 15% 25%;
+    --secondary-foreground: 0 0% 98%;
+    --accent: 270 15% 30%;
+    --accent-foreground: 0 0% 98%;
+    --border: 270 20% 30%;
+    --ring: 270 65% 60%;
+  }
+  
+  .dark.color-pastel-peach {
+    --primary: 25 70% 65%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 25 15% 25%;
+    --secondary-foreground: 0 0% 98%;
+    --accent: 25 15% 30%;
+    --accent-foreground: 0 0% 98%;
+    --border: 25 20% 30%;
+    --ring: 25 65% 60%;
+  }
 }
 
 @layer base {
