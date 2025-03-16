@@ -115,3 +115,57 @@
   box-shadow: 0 0 15px var(--primary, rgba(59, 130, 246, 0.7)), 0 0 20px var(--primary, rgba(59, 130, 246, 0.5));
   transform: translateY(-2px);
 }
+
+/* Pulse animation with theme color */
+@keyframes pulse-theme {
+  0%, 100% {
+    box-shadow: 0 0 0 0 hsla(var(--primary), 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 10px hsla(var(--primary), 0);
+  }
+}
+
+.animate-pulse {
+  animation: pulse-theme 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
+}
+
+/* Hover glow effects for different theme colors */
+.hover-glow:hover {
+  box-shadow: 0 0 15px hsla(var(--primary), 0.5), 0 0 20px hsla(var(--primary), 0.3);
+  transform: translateY(-2px);
+}
+
+.glow-red:hover {
+  box-shadow: 0 0 15px hsla(var(--primary), 0.5), 0 0 20px hsla(var(--primary), 0.3);
+  transform: translateY(-2px);
+}
+
+.glow-blue:hover {
+  box-shadow: 0 0 15px hsla(var(--primary), 0.5), 0 0 20px hsla(var(--primary), 0.3);
+  transform: translateY(-2px);
+}
+
+.glow-green:hover {
+  box-shadow: 0 0 15px hsla(var(--primary), 0.5), 0 0 20px hsla(var(--primary), 0.3);
+  transform: translateY(-2px);
+}
+
+.glow-primary:hover {
+  box-shadow: 0 0 15px hsla(var(--primary), 0.5), 0 0 20px hsla(var(--primary), 0.3);
+  transform: translateY(-2px);
+}
+
+/* Dark mode specific styles */
+.dark .bg-card {
+  @apply backdrop-blur-sm bg-slate-900/90 border-slate-800;
+}
+
+.dark .text-muted-foreground {
+  @apply text-slate-400;
+}
+
+/* Glass morphism effect for themed components */
+.glass {
+  @apply backdrop-blur-sm bg-background/5 border border-border/20 shadow-md;
+}

@@ -8,12 +8,14 @@ import { useToast } from "@/components/ui/use-toast";
 import { Sidebar, SidebarInset } from "@/components/ui/sidebar";
 import { Textarea } from "@/components/ui/textarea";
 import { FileText, Save } from "lucide-react";
+import { useTheme } from "@/contexts/ThemeContext";
 
 const NewNotePage = () => {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const { colorScheme } = useTheme();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,14 +49,14 @@ const NewNotePage = () => {
         <div className="w-full max-w-7xl mx-auto">
           <h1 className="text-3xl font-bold mb-8">Create New Note</h1>
 
-          <Card className="bg-white shadow-md">
+          <Card className="shadow-md border-border">
             <CardHeader>
               <CardTitle>Note Details</CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
-                  <label htmlFor="note-title" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="note-title" className="block text-sm font-medium text-foreground/80 mb-1">
                     Note Title
                   </label>
                   <Input
@@ -63,11 +65,12 @@ const NewNotePage = () => {
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     required
+                    className="border-input focus:border-primary"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="note-content" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="note-content" className="block text-sm font-medium text-foreground/80 mb-1">
                     Note Content
                   </label>
                   <Textarea
@@ -75,7 +78,7 @@ const NewNotePage = () => {
                     placeholder="Enter your note content here..."
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
-                    className="min-h-[200px]"
+                    className="min-h-[200px] border-input focus:border-primary"
                     required
                   />
                 </div>
@@ -83,7 +86,7 @@ const NewNotePage = () => {
                 <div className="flex justify-end">
                   <Button 
                     type="submit" 
-                    className="flex items-center gap-2 hover-glow glow-green" 
+                    className="flex items-center gap-2 bg-primary hover:bg-primary/90" 
                     disabled={isSubmitting}
                   >
                     <Save className="h-4 w-4" />

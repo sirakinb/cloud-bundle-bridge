@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Textarea } from "@/components/ui/textarea";
+import { useTheme } from "@/contexts/ThemeContext";
 
 const mockNotes = [
   {
@@ -56,6 +57,7 @@ const NotesPage = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState("");
   const { toast } = useToast();
+  const { colorScheme } = useTheme();
 
   const filteredNotes = () => {
     switch (activeTab) {
@@ -155,8 +157,8 @@ const NotesPage = () => {
                             key={note.id}
                             className={`p-4 cursor-pointer border-l-4 ${
                               selectedNote.id === note.id
-                                ? "border-blue-600 bg-blue-50 dark:bg-blue-950/30"
-                                : "border-transparent hover:bg-gray-50 dark:hover:bg-gray-800/30"
+                                ? "border-primary bg-accent/20"
+                                : "border-transparent hover:bg-accent/10"
                             }`}
                             onClick={() => setSelectedNote(note)}
                           >
