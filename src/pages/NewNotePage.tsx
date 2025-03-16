@@ -83,7 +83,7 @@ const NewNotePage = () => {
                 <div className="flex justify-end">
                   <Button 
                     type="submit" 
-                    className="flex items-center gap-2" 
+                    className="flex items-center gap-2 hover-glow glow-green" 
                     disabled={isSubmitting}
                   >
                     <Save className="h-4 w-4" />

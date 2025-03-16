@@ -116,3 +116,49 @@
 .animate-pulse {
   animation: pulse-slow 5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* Glow effect animations */
+@keyframes glow {
+  0% {
+    box-shadow: 0 0 5px rgba(59, 130, 246, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 15px rgba(59, 130, 246, 0.7), 0 0 20px rgba(59, 130, 246, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 5px rgba(59, 130, 246, 0.3);
+  }
+}
+
+.hover-glow {
+  transition: all 0.3s ease;
+}
+
+.hover-glow:hover {
+  animation: glow 2s infinite;
+  transform: translateY(-2px);
+}
+
+.glow-red:hover {
+  animation: none;
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.7), 0 0 20px rgba(239, 68, 68, 0.5);
+  transform: translateY(-2px);
+}
+
+.glow-blue:hover {
+  animation: none;
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.7), 0 0 20px rgba(59, 130, 246, 0.5);
+  transform: translateY(-2px);
+}
+
+.glow-green:hover {
+  animation: none;
+  box-shadow: 0 0 15px rgba(34, 197, 94, 0.7), 0 0 20px rgba(34, 197, 94, 0.5);
+  transform: translateY(-2px);
+}
+
+.glow-primary:hover {
+  animation: none;
+  box-shadow: 0 0 15px rgba(79, 70, 229, 0.7), 0 0 20px rgba(79, 70, 229, 0.5);
+  transform: translateY(-2px);
+}

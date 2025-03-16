@@ -48,7 +48,7 @@ const Index = () => {
           {/* Action Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <Card 
-              className="bg-red-50 border-red-100 transition-all duration-300 hover:shadow-xl hover:bg-red-100 cursor-pointer group"
+              className="bg-red-50 border-red-100 transition-all duration-300 hover:shadow-xl hover:bg-red-100 cursor-pointer group hover-glow glow-red"
               onClick={() => navigate('/record')}
             >
               <CardContent className="p-6">
@@ -65,7 +65,7 @@ const Index = () => {
             </Card>
 
             <Card 
-              className="bg-blue-50 border-blue-100 transition-all duration-300 hover:shadow-xl hover:bg-blue-100 cursor-pointer group"
+              className="bg-blue-50 border-blue-100 transition-all duration-300 hover:shadow-xl hover:bg-blue-100 cursor-pointer group hover-glow glow-blue"
               onClick={() => navigate('/new-note')}
             >
               <CardContent className="p-6">
@@ -89,7 +89,7 @@ const Index = () => {
               <Button 
                 variant="outline" 
                 size="sm" 
-                className="flex items-center gap-1 hover:shadow-md transition-all duration-300 hover:bg-blue-50"
+                className="flex items-center gap-1 hover:shadow-md transition-all duration-300 hover:bg-blue-50 hover-glow glow-primary"
                 onClick={() => setDialogOpen(true)}
               >
                 <Plus className="h-4 w-4" /> Add Task

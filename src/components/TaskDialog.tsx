@@ -258,7 +258,7 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
 
           </div>
           <DialogFooter>
-            <Button type="submit">Add Task</Button>
+            <Button type="submit" className="hover-glow glow-primary">Add Task</Button>
           </DialogFooter>
         </form>
       </DialogContent>
