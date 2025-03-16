@@ -1,5 +1,5 @@
 
-import { Book, BookOpen, Settings } from "lucide-react";
+import { BookOpen, FileText, Home, Mic, Settings } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import {
@@ -27,7 +27,7 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
                   <Link to="/">
-                    <Book />
+                    <Home />
                     <span>Dashboard</span>
                   </Link>
                 </SidebarMenuButton>
@@ -35,7 +35,7 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
                   <Link to="/record">
-                    <Book />
+                    <Mic />
                     <span>Record</span>
                   </Link>
                 </SidebarMenuButton>
@@ -43,7 +43,7 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
                   <Link to="/notes">
-                    <Book />
+                    <FileText />
                     <span>Notes</span>
                   </Link>
                 </SidebarMenuButton>
