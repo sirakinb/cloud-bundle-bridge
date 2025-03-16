@@ -5,42 +5,95 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { AppSidebar } from "@/components/AppSidebar";
-import { FileText, Mic } from "lucide-react";
+import { FileText, Mic, Star } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
 
-// Mock data for recordings and notes
+// Updated mock data with timestamps and favorite status
 const mockNotes = [
   {
     id: "note-1",
     title: "Biology Class Notes",
     date: "2023-05-15",
+    timestamp: new Date("2023-05-15T10:30:00").getTime(),
     recordingTitle: "Biology Lecture",
     content: "Cell structure and function: Cells are the basic unit of life. They contain organelles that perform specific functions.",
+    favorite: true,
   },
   {
     id: "note-2",
     title: "Chemistry Study",
     date: "2023-05-17",
+    timestamp: new Date("2023-05-17T14:15:00").getTime(),
     recordingTitle: "Chemistry Lab Session",
     content: "Chemical reactions: Exothermic reactions release energy, endothermic reactions absorb energy.",
+    favorite: false,
   },
   {
     id: "note-3",
     title: "Math Formulas",
     date: "2023-05-20",
+    timestamp: new Date("2023-05-20T09:00:00").getTime(),
     recordingTitle: "Calculus Lecture",
     content: "Integration formulas and techniques. Applications of integration in volume calculation.",
+    favorite: true,
   },
   {
     id: "note-4",
     title: "Physics Laws",
     date: "2023-05-22",
+    timestamp: new Date("2023-05-22T11:45:00").getTime(),
     recordingTitle: "Physics Class",
     content: "Newton's laws of motion: 1. An object at rest stays at rest, and an object in motion stays in motion unless acted upon by a force.",
+    favorite: false,
   },
 ];
 
 const NotesPage = () => {
-  const [selectedNote, setSelectedNote] = useState(mockNotes[0]);
+  const [notes, setNotes] = useState(mockNotes);
+  const [selectedNote, setSelectedNote] = useState(notes[0]);
+  const [activeTab, setActiveTab] = useState("all");
+  const { toast } = useToast();
+
+  // Filter notes based on active tab
+  const filteredNotes = () => {
+    switch (activeTab) {
+      case "recent":
+        return [...notes].sort((a, b) => b.timestamp - a.timestamp).slice(0, 3);
+      case "favorites":
+        return notes.filter(note => note.favorite);
+      default:
+        return notes;
+    }
+  };
+
+  // Toggle favorite status
+  const toggleFavorite = (noteId: string) => {
+    const updatedNotes = notes.map(note => 
+      note.id === noteId ? { ...note, favorite: !note.favorite } : note
+    );
+    
+    setNotes(updatedNotes);
+    
+    // Update selected note if it's the one being modified
+    if (selectedNote.id === noteId) {
+      const updatedSelectedNote = updatedNotes.find(note => note.id === noteId);
+      if (updatedSelectedNote) {
+        setSelectedNote(updatedSelectedNote);
+      }
+    }
+    
+    // Show toast notification
+    const currentNote = notes.find(note => note.id === noteId);
+    if (currentNote) {
+      const action = currentNote.favorite ? "removed from" : "added to";
+      toast({
+        title: `Note ${action} favorites`,
+        description: `"${currentNote.title}" has been ${action} your favorites`,
+      });
+    }
+  };
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -52,7 +105,7 @@ const NotesPage = () => {
             <p className="text-muted-foreground">View and manage your notes from recordings</p>
           </div>
 
-          <Tabs defaultValue="all">
+          <Tabs defaultValue="all" onValueChange={setActiveTab} value={activeTab}>
             <TabsList className="mb-4">
               <TabsTrigger value="all">All Notes</TabsTrigger>
               <TabsTrigger value="recent">Recent</TabsTrigger>
@@ -68,58 +121,107 @@ const NotesPage = () => {
                   </CardHeader>
                   <CardContent className="p-0">
                     <ScrollArea className="h-[60vh]">
-                      {mockNotes.map((note) => (
-                        <div
-                          key={note.id}
-                          className={`p-4 cursor-pointer border-l-4 ${
-                            selectedNote.id === note.id
-                              ? "border-blue-600 bg-blue-50"
-                              : "border-transparent hover:bg-gray-50"
-                          }`}
-                          onClick={() => setSelectedNote(note)}
-                        >
-                          <h3 className="font-medium">{note.title}</h3>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                            <span>{note.date}</span>
-                            <span>•</span>
-                            <span className="flex items-center">
-                              <Mic className="h-3 w-3 mr-1" />
-                              {note.recordingTitle}
-                            </span>
+                      {filteredNotes().length > 0 ? (
+                        filteredNotes().map((note) => (
+                          <div
+                            key={note.id}
+                            className={`p-4 cursor-pointer border-l-4 ${
+                              selectedNote.id === note.id
+                                ? "border-blue-600 bg-blue-50 dark:bg-blue-950/30"
+                                : "border-transparent hover:bg-gray-50 dark:hover:bg-gray-800/30"
+                            }`}
+                            onClick={() => setSelectedNote(note)}
+                          >
+                            <div className="flex justify-between items-start">
+                              <h3 className="font-medium">{note.title}</h3>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className={cn(
+                                  "h-8 w-8 animate-spin-hover", 
+                                  note.favorite && "text-yellow-500"
+                                )}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleFavorite(note.id);
+                                }}
+                              >
+                                <Star 
+                                  className={cn(
+                                    "h-4 w-4", 
+                                    note.favorite ? "fill-yellow-500" : ""
+                                  )} 
+                                />
+                              </Button>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                              <span>{note.date}</span>
+                              <span>•</span>
+                              <span className="flex items-center">
+                                <Mic className="h-3 w-3 mr-1" />
+                                {note.recordingTitle}
+                              </span>
+                            </div>
                           </div>
+                        ))
+                      ) : (
+                        <div className="p-6 text-center text-muted-foreground">
+                          No notes found in this category
                         </div>
-                      ))}
+                      )}
                     </ScrollArea>
                   </CardContent>
                 </Card>
               </div>
 
               <div className="md:col-span-2">
-                <Card>
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle>{selectedNote.title}</CardTitle>
-                        <CardDescription className="flex items-center mt-1">
-                          <span>{selectedNote.date}</span>
-                          <span className="mx-2">•</span>
-                          <span className="flex items-center">
-                            <Mic className="h-3 w-3 mr-1" />
-                            {selectedNote.recordingTitle}
-                          </span>
-                        </CardDescription>
+                {selectedNote ? (
+                  <Card>
+                    <CardHeader>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <CardTitle>{selectedNote.title}</CardTitle>
+                          <CardDescription className="flex items-center mt-1">
+                            <span>{selectedNote.date}</span>
+                            <span className="mx-2">•</span>
+                            <span className="flex items-center">
+                              <Mic className="h-3 w-3 mr-1" />
+                              {selectedNote.recordingTitle}
+                            </span>
+                          </CardDescription>
+                        </div>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className={cn(
+                            "h-9 w-9 animate-spin-hover", 
+                            selectedNote.favorite && "text-yellow-500"
+                          )}
+                          onClick={() => toggleFavorite(selectedNote.id)}
+                        >
+                          <Star 
+                            className={cn(
+                              "h-5 w-5", 
+                              selectedNote.favorite ? "fill-yellow-500" : ""
+                            )} 
+                          />
+                        </Button>
                       </div>
-                    </div>
-                  </CardHeader>
-                  <Separator />
-                  <CardContent className="pt-4">
-                    <ScrollArea className="h-[50vh]">
-                      <div className="prose prose-sm max-w-none">
-                        <p>{selectedNote.content}</p>
-                      </div>
-                    </ScrollArea>
-                  </CardContent>
-                </Card>
+                    </CardHeader>
+                    <Separator />
+                    <CardContent className="pt-4">
+                      <ScrollArea className="h-[50vh]">
+                        <div className="prose prose-sm max-w-none dark:prose-invert">
+                          <p>{selectedNote.content}</p>
+                        </div>
+                      </ScrollArea>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card className="flex items-center justify-center h-[60vh]">
+                    <p className="text-muted-foreground">Select a note to view its content</p>
+                  </Card>
+                )}
               </div>
             </div>
           </Tabs>

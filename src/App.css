@@ -77,3 +77,31 @@
 .animate-spin-hover:hover svg {
   animation: spin-slow 1.5s ease-in-out;
 }
+
+/* Star button animation */
+@keyframes star-bounce {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+}
+
+@keyframes star-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 2px rgba(250, 204, 21, 0.5));
+  }
+  50% {
+    filter: drop-shadow(0 0 6px rgba(250, 204, 21, 0.8));
+  }
+}
+
+.favorite-star.active svg {
+  animation: star-bounce 0.4s ease-in-out;
+  filter: drop-shadow(0 0 4px rgba(250, 204, 21, 0.7));
+}
+
+.favorite-star:hover svg {
+  animation: star-glow 1.5s infinite ease-in-out;
+}
