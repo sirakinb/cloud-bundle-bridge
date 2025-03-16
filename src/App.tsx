@@ -11,33 +11,38 @@ import ResourcesPage from "./pages/ResourcesPage";
 import NotesPage from "./pages/NotesPage";
 import RecordPage from "./pages/RecordPage";
 import NewNotePage from "./pages/NewNotePage";
+import SettingsPage from "./pages/SettingsPage";
 import { SidebarProvider } from "./components/ui/sidebar";
 import { TaskProvider } from "./contexts/TaskContext";
+import { ThemeProvider } from "./contexts/ThemeContext";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <SidebarProvider>
-        <TaskProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/tools" element={<ToolsPage />} />
-              <Route path="/resources" element={<ResourcesPage />} />
-              <Route path="/notes" element={<NotesPage />} />
-              <Route path="/record" element={<RecordPage />} />
-              <Route path="/new-note" element={<NewNotePage />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TaskProvider>
-      </SidebarProvider>
-    </TooltipProvider>
+    <ThemeProvider>
+      <TooltipProvider>
+        <SidebarProvider>
+          <TaskProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/tools" element={<ToolsPage />} />
+                <Route path="/resources" element={<ResourcesPage />} />
+                <Route path="/notes" element={<NotesPage />} />
+                <Route path="/record" element={<RecordPage />} />
+                <Route path="/new-note" element={<NewNotePage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </TaskProvider>
+        </SidebarProvider>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 
