@@ -8,10 +8,12 @@ import { Sidebar, SidebarInset } from "@/components/ui/sidebar";
 import TaskDialog from "@/components/TaskDialog";
 import { useTasks } from "@/contexts/TaskContext";
 import TaskItem from "@/components/TaskItem";
+import { Link, useNavigate } from "react-router-dom";
 
 const Index = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const { tasks } = useTasks();
+  const navigate = useNavigate();
   
   const todaysTasks = tasks;
 
@@ -45,7 +47,10 @@ const Index = () => {
 
           {/* Action Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <Card className="bg-red-50 border-red-100 transition-all duration-300 hover:shadow-xl hover:bg-red-100 cursor-pointer group">
+            <Card 
+              className="bg-red-50 border-red-100 transition-all duration-300 hover:shadow-xl hover:bg-red-100 cursor-pointer group"
+              onClick={() => navigate('/record')}
+            >
               <CardContent className="p-6">
                 <div className="flex items-center">
                   <div className="mr-4 bg-red-200 p-3 rounded-full transition-all duration-300 group-hover:bg-red-300 shadow-md">
@@ -59,7 +64,10 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            <Card className="bg-blue-50 border-blue-100 transition-all duration-300 hover:shadow-xl hover:bg-blue-100 cursor-pointer group">
+            <Card 
+              className="bg-blue-50 border-blue-100 transition-all duration-300 hover:shadow-xl hover:bg-blue-100 cursor-pointer group"
+              onClick={() => navigate('/new-note')}
+            >
               <CardContent className="p-6">
                 <div className="flex items-center">
                   <div className="mr-4 bg-blue-200 p-3 rounded-full transition-all duration-300 group-hover:bg-blue-300 shadow-md">

@@ -9,6 +9,8 @@ import NotFound from "./pages/NotFound";
 import ToolsPage from "./pages/ToolsPage";
 import ResourcesPage from "./pages/ResourcesPage";
 import NotesPage from "./pages/NotesPage";
+import RecordPage from "./pages/RecordPage";
+import NewNotePage from "./pages/NewNotePage";
 import { SidebarProvider } from "./components/ui/sidebar";
 import { TaskProvider } from "./contexts/TaskContext";
 
@@ -27,6 +29,8 @@ const App = () => (
               <Route path="/tools" element={<ToolsPage />} />
               <Route path="/resources" element={<ResourcesPage />} />
               <Route path="/notes" element={<NotesPage />} />
+              <Route path="/record" element={<RecordPage />} />
+              <Route path="/new-note" element={<NewNotePage />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
