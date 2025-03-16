@@ -30,6 +30,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     
     // Save theme to localStorage
     localStorage.setItem("theme", theme);
+
+    // Add a transition class to smooth color changes
+    root.classList.add("transition-colors");
+    root.style.colorScheme = theme;
   }, [theme]);
 
   return (
