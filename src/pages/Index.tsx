@@ -24,8 +24,8 @@ const Index = () => {
       <AppSidebar />
       <SidebarInset className="p-6">
         <div className="w-full max-w-7xl mx-auto">
-          {/* Welcome Banner */}
-          <div className="bg-accent/20 rounded-lg p-8 mb-8 transition-all duration-300 hover:shadow-lg animate-pulse">
+          {/* Welcome Banner - animation removed */}
+          <div className="bg-accent/20 rounded-lg p-8 mb-8 transition-all duration-300 hover:shadow-lg">
             <div className="flex items-center justify-center mb-4">
               <div className="bg-accent p-3 rounded-full shadow-md transition-transform hover:scale-110 duration-300">
                 <svg

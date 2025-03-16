@@ -130,30 +130,42 @@
   animation: pulse-theme 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
 }
 
+/* Enhanced hover effects for buttons with better contrast */
+button:hover, .button:hover {
+  filter: contrast(120%) saturate(120%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
 /* Hover glow effects for different theme colors */
 .hover-glow:hover {
   box-shadow: 0 0 15px hsla(var(--primary), 0.5), 0 0 20px hsla(var(--primary), 0.3);
   transform: translateY(-2px);
+  filter: contrast(120%) brightness(110%);
 }
 
 .glow-red:hover {
   box-shadow: 0 0 15px hsla(var(--primary), 0.5), 0 0 20px hsla(var(--primary), 0.3);
   transform: translateY(-2px);
+  filter: contrast(130%) saturate(120%);
 }
 
 .glow-blue:hover {
   box-shadow: 0 0 15px hsla(var(--primary), 0.5), 0 0 20px hsla(var(--primary), 0.3);
   transform: translateY(-2px);
+  filter: contrast(130%) saturate(120%);
 }
 
 .glow-green:hover {
   box-shadow: 0 0 15px hsla(var(--primary), 0.5), 0 0 20px hsla(var(--primary), 0.3);
   transform: translateY(-2px);
+  filter: contrast(130%) saturate(120%);
 }
 
 .glow-primary:hover {
   box-shadow: 0 0 15px hsla(var(--primary), 0.5), 0 0 20px hsla(var(--primary), 0.3);
   transform: translateY(-2px);
+  filter: contrast(130%) saturate(120%);
 }
 
 /* Dark mode specific styles */
