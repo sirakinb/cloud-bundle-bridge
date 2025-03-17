@@ -16,13 +16,14 @@ import { toast } from "@/hooks/use-toast";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, isBefore } from "date-fns";
-import { CalendarIcon, Clock, HardHat, Info } from "lucide-react";
+import { CalendarIcon, Clock, HardHat, Info, Hourglass, RepeatCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useTasks } from "@/contexts/TaskContext";
+import { useTasks, TaskType } from "@/contexts/TaskContext";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Card, CardContent } from "@/components/ui/card";
 
 type TaskDialogProps = {
   open: boolean;
@@ -38,6 +39,7 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
   const [ampm, setAmPm] = useState<string>("PM");
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [duration, setDuration] = useState<number>(60); // Default 60 minutes
+  const [taskType, setTaskType] = useState<TaskType>('one-time');
   
   const { addTask, calculateUrgency } = useTasks();
 
@@ -70,12 +72,13 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
       dueDate: dueDateTime,
       difficulty,
       duration,
+      taskType,
     });
 
     // Show toast with schedule information
     toast({
       title: "Task scheduled",
-      description: `Your task has been scheduled${dueDateTime ? ` to be completed by ${format(dueDateTime, "PPP 'at' h:mm a")}` : ""}. Urgency: ${calculatedUrgency.toUpperCase()}`,
+      description: `Your ${taskType === 'multi-day' ? 'multi-day' : 'one-time'} task has been scheduled${dueDateTime ? ` to be completed by ${format(dueDateTime, "PPP 'at' h:mm a")}` : ""}. Urgency: ${calculatedUrgency.toUpperCase()}`,
     });
 
     // Reset form
@@ -87,6 +90,7 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
     setAmPm("PM");
     setDifficulty('medium');
     setDuration(60);
+    setTaskType('one-time');
     onOpenChange(false);
   };
 
@@ -155,6 +159,47 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
                 placeholder="Add details about this task"
               />
             </div>
+            
+            {/* Task Type Selection */}
+            <div className="grid grid-cols-4 items-start gap-4">
+              <Label className="text-right pt-2">Task Type</Label>
+              <div className="col-span-3 grid grid-cols-2 gap-3">
+                <Card 
+                  className={cn(
+                    "cursor-pointer transition-all hover:shadow-md",
+                    taskType === 'one-time' ? "border-primary bg-primary/5" : "border-muted"
+                  )}
+                  onClick={() => setTaskType('one-time')}
+                >
+                  <CardContent className="pt-4 flex flex-col items-center text-center">
+                    <Hourglass className={cn(
+                      "w-8 h-8 mb-2",
+                      taskType === 'one-time' ? "text-primary" : "text-muted-foreground"
+                    )} />
+                    <h3 className="font-medium">One-time Task</h3>
+                    <p className="text-sm text-muted-foreground">Complete in one session</p>
+                  </CardContent>
+                </Card>
+                
+                <Card 
+                  className={cn(
+                    "cursor-pointer transition-all hover:shadow-md",
+                    taskType === 'multi-day' ? "border-primary bg-primary/5" : "border-muted"
+                  )}
+                  onClick={() => setTaskType('multi-day')}
+                >
+                  <CardContent className="pt-4 flex flex-col items-center text-center">
+                    <RepeatCircle className={cn(
+                      "w-8 h-8 mb-2",
+                      taskType === 'multi-day' ? "text-primary" : "text-muted-foreground"
+                    )} />
+                    <h3 className="font-medium">Multi-day Task</h3>
+                    <p className="text-sm text-muted-foreground">Split into Pomodoro sessions</p>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+            
             <div className="grid grid-cols-4 items-center gap-4">
               <div className="text-right flex items-center justify-end gap-1">
                 <Label htmlFor="due-date">Due Date</Label>
@@ -164,7 +209,11 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
                       <Info className="h-4 w-4 text-muted-foreground" />
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p className="max-w-xs">Tasks will automatically be scheduled to start before the due date based on difficulty</p>
+                      <p className="max-w-xs">
+                        {taskType === 'multi-day' 
+                          ? "Multi-day tasks will be split into Pomodoro sessions (25-minute focused work periods) spread out between start and due date"
+                          : "Tasks will automatically be scheduled to start before the due date based on difficulty"}
+                      </p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -251,7 +300,9 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
                       <HardHat className="h-4 w-4 text-yellow-500" />
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Harder tasks will be scheduled to start earlier</p>
+                      <p>{taskType === 'multi-day' 
+                        ? "Harder tasks will generate more Pomodoro sessions" 
+                        : "Harder tasks will be scheduled to start earlier"}</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -286,7 +337,11 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
                       <Info className="h-4 w-4 text-muted-foreground" />
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>How long the task will take to complete</p>
+                      <p>
+                        {taskType === 'multi-day' 
+                          ? "Total time needed, will be split into 25-minute Pomodoro sessions" 
+                          : "How long the task will take to complete"}
+                      </p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -302,6 +357,11 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
               </div>
               <div className="text-sm">
                 {duration} minutes
+                {taskType === 'multi-day' && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    ≈ {Math.ceil(duration / 25)} Pomodoro sessions
+                  </div>
+                )}
               </div>
             </div>
 
