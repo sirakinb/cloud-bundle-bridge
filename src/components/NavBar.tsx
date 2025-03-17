@@ -13,7 +13,7 @@ const NavBar = () => {
           <BookOpen className="h-6 w-6 text-primary mr-2" />
           <Link 
             to="/" 
-            className="text-xl font-bold text-primary hover:text-primary/80 hover:contrast-125 hover:saturate-150 transition-all duration-300"
+            className="text-xl font-heading font-bold text-primary hover:text-primary/80 hover:contrast-125 hover:saturate-150 transition-all duration-300"
           >
             ClearStudy
           </Link>
