@@ -1,45 +1,51 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
-import { differenceInDays, isToday, addDays } from "date-fns";
+import { differenceInDays, isToday, addDays, subDays } from "date-fns";
 
 export interface Task {
   id: string;
   name: string;
   description: string;
   dueDate?: Date;
+  startDate?: Date;
   urgency: 'low' | 'medium' | 'high';
   difficulty: 'easy' | 'medium' | 'hard';
   completed: boolean;
-  duration: number; // Duration in minutes
+  duration: number;
 }
 
 interface TaskContextType {
   tasks: Task[];
-  addTask: (task: Omit<Task, "id" | "completed" | "urgency">) => void;
+  addTask: (task: Omit<Task, "id" | "completed" | "urgency" | "startDate">) => void;
   removeTask: (id: string) => void;
   toggleTaskCompletion: (id: string) => void;
   updateTaskDifficulty: (id: string, difficulty: 'easy' | 'medium' | 'hard') => void;
   calculateUrgency: (dueDate?: Date) => 'low' | 'medium' | 'high';
+  getTasksForDateRange: (startDate: Date, endDate: Date) => Task[];
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
 
-// Calculate task duration based on difficulty
 const getTaskDuration = (difficulty: 'easy' | 'medium' | 'hard'): number => {
   switch (difficulty) {
-    case 'easy': return 30; // 30 minutes
-    case 'medium': return 60; // 1 hour
-    case 'hard': return 120; // 2 hours
+    case 'easy': return 30;
+    case 'medium': return 60;
+    case 'hard': return 120;
     default: return 60;
   }
+};
+
+const calculateStartDate = (dueDate?: Date, duration: number = 60): Date | undefined => {
+  if (!dueDate) return undefined;
+
+  const daysToSubtract = Math.max(1, Math.ceil(duration / 120));
+  return subDays(dueDate, daysToSubtract);
 };
 
 export function TaskProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   
-  // Calculate urgency based on due date
   const calculateUrgency = (dueDate?: Date): 'low' | 'medium' | 'high' => {
-    if (!dueDate) return 'low'; // No due date means low urgency
+    if (!dueDate) return 'low';
     
     const today = new Date();
     const daysDifference = differenceInDays(dueDate, today);
@@ -53,9 +59,24 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Update urgency for all tasks when component mounts and every day
+  const getTasksForDateRange = (startDate: Date, endDate: Date): Task[] => {
+    return tasks.filter(task => {
+      if (!task.startDate && !task.dueDate) return false;
+      
+      const taskStart = task.startDate || task.dueDate;
+      const taskEnd = task.dueDate || task.startDate;
+      
+      if (!taskStart || !taskEnd) return false;
+      
+      return (
+        (taskStart >= startDate && taskStart <= endDate) ||
+        (taskEnd >= startDate && taskEnd <= endDate) ||
+        (taskStart <= startDate && taskEnd >= endDate)
+      );
+    });
+  };
+
   useEffect(() => {
-    // Function to update all tasks' urgency
     const updateAllTasksUrgency = () => {
       setTasks(prevTasks => 
         prevTasks.map(task => ({
@@ -65,10 +86,8 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       );
     };
 
-    // Update urgency when component mounts
     updateAllTasksUrgency();
     
-    // Set up a daily check to update urgency
     const midnight = new Date();
     midnight.setHours(0, 0, 0, 0);
     midnight.setDate(midnight.getDate() + 1);
@@ -77,7 +96,6 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     
     const dailyUpdateTimer = setTimeout(() => {
       updateAllTasksUrgency();
-      // Set up recurring daily updates
       const dailyInterval = setInterval(updateAllTasksUrgency, 24 * 60 * 60 * 1000);
       return () => clearInterval(dailyInterval);
     }, timeUntilMidnight);
@@ -85,9 +103,10 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(dailyUpdateTimer);
   }, []);
 
-  const addTask = (task: Omit<Task, "id" | "completed" | "urgency">) => {
+  const addTask = (task: Omit<Task, "id" | "completed" | "urgency" | "startDate">) => {
     const urgency = calculateUrgency(task.dueDate);
     const duration = task.duration || getTaskDuration(task.difficulty);
+    const startDate = calculateStartDate(task.dueDate, duration);
     
     const newTask = {
       ...task,
@@ -95,6 +114,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       completed: false,
       urgency,
       duration,
+      startDate,
     };
     
     setTasks((prevTasks) => [...prevTasks, newTask]);
@@ -114,13 +134,19 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   
   const updateTaskDifficulty = (id: string, difficulty: 'easy' | 'medium' | 'hard') => {
     setTasks((prevTasks) =>
-      prevTasks.map((task) =>
-        task.id === id ? { 
-          ...task, 
-          difficulty,
-          duration: getTaskDuration(difficulty)
-        } : task
-      )
+      prevTasks.map((task) => {
+        if (task.id === id) {
+          const duration = getTaskDuration(difficulty);
+          const startDate = calculateStartDate(task.dueDate, duration);
+          return { 
+            ...task, 
+            difficulty,
+            duration,
+            startDate
+          };
+        }
+        return task;
+      })
     );
   };
 
@@ -131,7 +157,8 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       removeTask, 
       toggleTaskCompletion, 
       updateTaskDifficulty,
-      calculateUrgency 
+      calculateUrgency,
+      getTasksForDateRange
     }}>
       {children}
     </TaskContext.Provider>

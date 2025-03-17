@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { format, startOfWeek, addDays, isSameDay, isToday, differenceInDays } from "date-fns";
+import { format, startOfWeek, addDays, isSameDay, isToday, differenceInDays, endOfWeek, parseISO, isWithinInterval } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
@@ -14,10 +14,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 const CalendarPage = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [view, setView] = useState<'day' | 'week'>('day');
-  const { tasks } = useTasks();
+  const { tasks, getTasksForDateRange } = useTasks();
 
-  // Get the start of the week for the weekly view
+  // Get the start and end of the week for the weekly view
   const startOfCurrentWeek = startOfWeek(selectedDate, { weekStartsOn: 1 }); // Start on Monday
+  const endOfCurrentWeek = endOfWeek(selectedDate, { weekStartsOn: 1 });
   
   // Create array of days for the week view
   const weekDays = Array.from({ length: 7 }, (_, i) => {
@@ -29,11 +30,32 @@ const CalendarPage = () => {
     };
   });
 
-  // Filter tasks for the selected date or week
+  // Filter tasks for the selected date in day view
   const getTasksForDate = (date: Date) => {
-    return tasks.filter(task => 
-      task.dueDate && isSameDay(task.dueDate, date)
-    ).sort((a, b) => {
+    const dayStart = new Date(date);
+    dayStart.setHours(0, 0, 0, 0);
+    
+    const dayEnd = new Date(date);
+    dayEnd.setHours(23, 59, 59, 999);
+    
+    return tasks.filter(task => {
+      // If the task has a startDate and dueDate, check if the selected date falls within that range
+      if (task.startDate && task.dueDate) {
+        return isWithinInterval(date, { start: task.startDate, end: task.dueDate });
+      }
+      
+      // If there's only a startDate, check if it matches the selected date
+      if (task.startDate && !task.dueDate) {
+        return isSameDay(task.startDate, date);
+      }
+      
+      // If there's only a dueDate, check if it matches the selected date
+      if (!task.startDate && task.dueDate) {
+        return isSameDay(task.dueDate, date);
+      }
+      
+      return false;
+    }).sort((a, b) => {
       // Sort by due date time first
       if (a.dueDate && b.dueDate) {
         return a.dueDate.getTime() - b.dueDate.getTime();
@@ -42,8 +64,10 @@ const CalendarPage = () => {
     });
   };
 
-  // Get all tasks that have a due date for week view
-  const tasksWithDueDate = tasks.filter(task => task.dueDate);
+  // Get all tasks for the week view
+  const getTasksForWeek = () => {
+    return getTasksForDateRange(startOfCurrentWeek, endOfCurrentWeek);
+  };
 
   // Get color based on urgency
   const getUrgencyColor = (urgency: string) => {
@@ -65,21 +89,53 @@ const CalendarPage = () => {
   });
 
   // Calculate task position in the day view
-  const getTaskPosition = (task: typeof tasks[0]) => {
-    if (!task.dueDate) return {};
+  const getTaskPosition = (task: typeof tasks[0], date: Date) => {
+    // If task has both start and due dates, we need to spread it across days
+    if (task.startDate && task.dueDate) {
+      // If this is the start date, position it in the morning
+      if (isSameDay(task.startDate, date)) {
+        return {
+          top: '8rem', // Start around 8am
+          height: '4rem', // Show for 4 hours
+        };
+      }
+      // If this is the due date, position it to end by 5pm
+      else if (isSameDay(task.dueDate, date)) {
+        return {
+          top: '12rem', // Start around 12pm
+          height: '5rem', // Show for 5 hours
+        };
+      }
+      // For days in between, position in middle of day
+      else {
+        return {
+          top: '10rem', // Middle of work day
+          height: '3rem',
+        };
+      }
+    }
     
-    const hour = task.dueDate.getHours();
-    const minute = task.dueDate.getMinutes();
+    // For tasks with only a due date, show on the specified time
+    if (task.dueDate) {
+      const hour = task.dueDate.getHours();
+      const minute = task.dueDate.getMinutes();
+      
+      // Calculate top position based on time (each hour is 6rem tall)
+      const topPosition = hour * 6 + (minute / 60) * 6;
+      
+      // Calculate height based on task duration (1 hour = 6rem)
+      const height = (task.duration / 60) * 6;
+      
+      return {
+        top: `${topPosition}rem`,
+        height: `${height}rem`,
+      };
+    }
     
-    // Calculate top position based on time (each hour is 6rem tall)
-    const topPosition = hour * 6 + (minute / 60) * 6;
-    
-    // Calculate height based on task duration (1 hour = 6rem)
-    const height = (task.duration / 60) * 6;
-    
+    // Default position if no dates are specified
     return {
-      top: `${topPosition}rem`,
-      height: `${height}rem`,
+      top: '9rem',
+      height: '3rem',
     };
   };
 
@@ -94,6 +150,28 @@ const CalendarPage = () => {
         direction === 'prev' ? addDays(prevDate, -7) : addDays(prevDate, 7)
       );
     }
+  };
+
+  // Show task completion status visually
+  const getTaskStatusIndicator = (task: typeof tasks[0]) => {
+    if (task.completed) {
+      return <div className="absolute top-0 right-0 h-3 w-3 bg-green-500 rounded-full"></div>;
+    }
+    return null;
+  };
+
+  // Get the display text for task dates
+  const getTaskDateText = (task: typeof tasks[0]) => {
+    if (task.startDate && task.dueDate) {
+      return `${format(task.startDate, 'MMM d')} - ${format(task.dueDate, 'MMM d')}`;
+    }
+    if (task.dueDate) {
+      return `Due: ${format(task.dueDate, 'MMM d')}`;
+    }
+    if (task.startDate) {
+      return `Start: ${format(task.startDate, 'MMM d')}`;
+    }
+    return '';
   };
 
   return (
@@ -190,11 +268,12 @@ const CalendarPage = () => {
                             {getTasksForDate(selectedDate).map(task => (
                               <div 
                                 key={task.id}
-                                className={`absolute rounded-md p-2 border-l-4 mx-2 overflow-hidden shadow-sm ${getUrgencyColor(task.urgency)}`}
-                                style={getTaskPosition(task)}
+                                className={`absolute rounded-md p-2 border-l-4 mx-2 overflow-hidden shadow-sm ${getUrgencyColor(task.urgency)} ${task.completed ? 'opacity-60' : ''}`}
+                                style={getTaskPosition(task, selectedDate)}
                               >
-                                <div className="flex flex-col h-full overflow-hidden">
-                                  <h3 className="font-medium text-sm truncate">{task.name}</h3>
+                                <div className="flex flex-col h-full overflow-hidden relative">
+                                  {getTaskStatusIndicator(task)}
+                                  <h3 className={`font-medium text-sm truncate ${task.completed ? 'line-through' : ''}`}>{task.name}</h3>
                                   
                                   <div className="flex items-center gap-2 text-xs mt-1">
                                     <span className="flex items-center">
@@ -205,6 +284,10 @@ const CalendarPage = () => {
                                       <HardHat className="h-3 w-3 mr-1" />
                                       {task.difficulty}
                                     </span>
+                                  </div>
+                                  
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    {getTaskDateText(task)}
                                   </div>
                                   
                                   {task.description && (
@@ -256,11 +339,19 @@ const CalendarPage = () => {
                               {getTasksForDate(day.date).map(task => (
                                 <div 
                                   key={task.id} 
-                                  className={`mb-2 p-2 rounded-md border-l-4 text-sm ${getUrgencyColor(task.urgency)}`}
+                                  className={`mb-2 p-2 rounded-md border-l-4 text-sm ${getUrgencyColor(task.urgency)} ${task.completed ? 'opacity-60' : ''}`}
                                 >
-                                  <div className="font-medium truncate">{task.name}</div>
+                                  <div className={`font-medium truncate ${task.completed ? 'line-through' : ''}`}>
+                                    {task.name}
+                                    {getTaskStatusIndicator(task)}
+                                  </div>
+                                  
+                                  <div className="text-xs text-muted-foreground">
+                                    {getTaskDateText(task)}
+                                  </div>
+                                  
                                   {task.dueDate && (
-                                    <div className="text-xs text-muted-foreground flex items-center">
+                                    <div className="text-xs text-muted-foreground flex items-center mt-1">
                                       <Clock className="h-3 w-3 mr-1" />
                                       {format(task.dueDate, 'h:mm a')} · {task.duration} min
                                     </div>

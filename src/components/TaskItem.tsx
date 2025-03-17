@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
-import { Check, Clock, Flame, HardHat, Trash2 } from "lucide-react";
+import { Check, Clock, Flame, HardHat, Trash2, Calendar } from "lucide-react";
 import { Task, useTasks } from "@/contexts/TaskContext";
 import { useTheme } from "@/contexts/ThemeContext";
 
@@ -60,20 +60,38 @@ const TaskItem = ({ task }: TaskItemProps) => {
               <p className={`text-sm text-muted-foreground mt-1 ${task.completed ? 'line-through' : ''}`}>{task.description}</p>
             )}
             <div className="flex flex-wrap gap-2 mt-2">
+              {/* Schedule timeline */}
+              {(task.startDate || task.dueDate) && (
+                <div className="flex items-center text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                  <Calendar className="h-3 w-3 mr-1" />
+                  <span>
+                    {task.startDate && task.dueDate
+                      ? `${format(task.startDate, "MMM d")} - ${format(task.dueDate, "MMM d")}`
+                      : task.startDate
+                      ? `Start: ${format(task.startDate, "MMM d")}`
+                      : `Due: ${format(task.dueDate!, "MMM d")}`}
+                  </span>
+                </div>
+              )}
+              
+              {/* Due time if available */}
               {task.dueDate && (
                 <div className="flex items-center text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
                   <Clock className="h-3 w-3 mr-1" />
-                  <span>{format(task.dueDate, "PPP 'at' h:mm a")}</span>
+                  <span>{format(task.dueDate, "h:mm a")}</span>
                 </div>
               )}
+              
               <div className={`flex items-center text-xs px-2 py-1 rounded-full ${getUrgencyColor(task.urgency)}`}>
                 <Flame className="h-3 w-3 mr-1" />
                 <span className="capitalize">{task.urgency} Urgency</span>
               </div>
+              
               <div className={`flex items-center text-xs px-2 py-1 rounded-full ${getDifficultyColor(task.difficulty)}`}>
                 <HardHat className="h-3 w-3 mr-1" />
                 <span className="capitalize">{task.difficulty} Difficulty</span>
               </div>
+              
               <div className="flex items-center text-xs px-2 py-1 rounded-full text-muted-foreground bg-muted">
                 <Clock className="h-3 w-3 mr-1" />
                 <span>{task.duration} min</span>

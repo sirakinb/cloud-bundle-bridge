@@ -15,13 +15,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { format } from "date-fns";
-import { CalendarIcon, Clock, HardHat } from "lucide-react";
+import { format, isBefore } from "date-fns";
+import { CalendarIcon, Clock, HardHat, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useTasks } from "@/contexts/TaskContext";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type TaskDialogProps = {
   open: boolean;
@@ -71,9 +72,10 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
       duration,
     });
 
+    // Show toast with schedule information
     toast({
-      title: "Task created",
-      description: `Your task has been added successfully${dueDateTime ? ` and is due on ${format(dueDateTime, "PPP 'at' h:mm a")}` : ""}. Urgency: ${calculatedUrgency.toUpperCase()}`,
+      title: "Task scheduled",
+      description: `Your task has been scheduled${dueDateTime ? ` to be completed by ${format(dueDateTime, "PPP 'at' h:mm a")}` : ""}. Urgency: ${calculatedUrgency.toUpperCase()}`,
     });
 
     // Reset form
@@ -125,7 +127,7 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
           <DialogHeader>
             <DialogTitle>Add New Task</DialogTitle>
             <DialogDescription>
-              Create a new task. Urgency will be calculated automatically based on the due date.
+              Create a new task. It will be scheduled to be completed by the due date.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -154,9 +156,19 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="due-date" className="text-right">
-                Due Date
-              </Label>
+              <div className="text-right flex items-center justify-end gap-1">
+                <Label htmlFor="due-date">Due Date</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">Tasks will automatically be scheduled to start before the due date based on difficulty</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -231,9 +243,19 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
 
             {/* Difficulty Selection */}
             <div className="grid grid-cols-4 items-start gap-4">
-              <Label className="text-right pt-2">
-                Difficulty <HardHat className="inline h-4 w-4 text-yellow-500" />
-              </Label>
+              <div className="text-right flex items-center justify-end gap-1">
+                <Label className="pt-2">Difficulty</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HardHat className="h-4 w-4 text-yellow-500" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Harder tasks will be scheduled to start earlier</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <RadioGroup
                 value={difficulty}
                 onValueChange={handleDifficultyChange}
@@ -256,9 +278,19 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
 
             {/* Task Duration */}
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">
-                Duration
-              </Label>
+              <div className="text-right flex items-center justify-end gap-1">
+                <Label>Duration</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>How long the task will take to complete</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <div className="col-span-2">
                 <Slider
                   value={[duration]}
@@ -275,7 +307,7 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
 
           </div>
           <DialogFooter>
-            <Button type="submit" className="hover-glow glow-primary">Add Task</Button>
+            <Button type="submit" className="hover-glow glow-primary">Schedule Task</Button>
           </DialogFooter>
         </form>
       </DialogContent>
