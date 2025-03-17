@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
-import { Check, Clock, Flame, HardHat, Trash2, Calendar, Hourglass, RepeatCircle } from "lucide-react";
+import { Check, Clock, Flame, HardHat, Trash2, Calendar, Hourglass, Repeat } from "lucide-react";
 import { Task, useTasks } from "@/contexts/TaskContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Badge } from "@/components/ui/badge";
@@ -64,7 +64,7 @@ const TaskItem = ({ task }: TaskItemProps) => {
               <h3 className={`font-medium ${task.completed ? 'line-through text-muted-foreground' : ''}`}>{task.name}</h3>
               {task.taskType === 'multi-day' ? (
                 <Badge variant="outline" className="flex items-center gap-1 text-xs">
-                  <RepeatCircle className="h-3 w-3" />
+                  <Repeat className="h-3 w-3" />
                   <span>Multi-day</span>
                 </Badge>
               ) : (

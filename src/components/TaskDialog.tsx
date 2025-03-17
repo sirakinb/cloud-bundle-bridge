@@ -15,8 +15,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { format, isBefore } from "date-fns";
-import { CalendarIcon, Clock, HardHat, Info, Hourglass, RepeatCircle } from "lucide-react";
+import { format, isBefore, parse } from "date-fns";
+import { CalendarIcon, Clock, HardHat, Info, Hourglass, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useTasks, TaskType } from "@/contexts/TaskContext";
@@ -24,6 +24,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Card, CardContent } from "@/components/ui/card";
+import { Form, FormControl, FormField, FormItem } from "@/components/ui/form";
+import { useForm } from "react-hook-form";
 
 type TaskDialogProps = {
   open: boolean;
@@ -34,14 +36,42 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
   const [taskName, setTaskName] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState<Date | undefined>(undefined);
+  const [dateInput, setDateInput] = useState("");
   const [hour, setHour] = useState<string>("12");
   const [minute, setMinute] = useState<string>("00");
   const [ampm, setAmPm] = useState<string>("PM");
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [duration, setDuration] = useState<number>(60); // Default 60 minutes
   const [taskType, setTaskType] = useState<TaskType>('one-time');
+  const [showCalendar, setShowCalendar] = useState(false);
   
   const { addTask, calculateUrgency } = useTasks();
+
+  const handleDateInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setDateInput(value);
+    
+    // Try to parse the date string
+    try {
+      // Check common formats: MM/DD/YYYY, MM-DD-YYYY, etc.
+      const formats = ['MM/dd/yyyy', 'MM-dd-yyyy', 'yyyy/MM/dd', 'yyyy-MM-dd', 'M/d/yyyy', 'M-d-yyyy'];
+      
+      for (const dateFormat of formats) {
+        try {
+          const parsedDate = parse(value, dateFormat, new Date());
+          // Check if the date is valid
+          if (!isNaN(parsedDate.getTime())) {
+            setDate(parsedDate);
+            return;
+          }
+        } catch (err) {
+          // Try next format
+        }
+      }
+    } catch (error) {
+      // Invalid date, leave date as undefined
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,6 +115,7 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
     setTaskName("");
     setDescription("");
     setDate(undefined);
+    setDateInput("");
     setHour("12");
     setMinute("00");
     setAmPm("PM");
@@ -123,6 +154,13 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
   const minutes = Array.from({ length: 60 }, (_, i) => {
     return i.toString().padStart(2, "0");
   });
+
+  // Update dateInput when date changes via calendar
+  React.useEffect(() => {
+    if (date) {
+      setDateInput(format(date, "MM/dd/yyyy"));
+    }
+  }, [date]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -189,7 +227,7 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
                   onClick={() => setTaskType('multi-day')}
                 >
                   <CardContent className="pt-4 flex flex-col items-center text-center">
-                    <RepeatCircle className={cn(
+                    <Repeat className={cn(
                       "w-8 h-8 mb-2",
                       taskType === 'multi-day' ? "text-primary" : "text-muted-foreground"
                     )} />
@@ -218,30 +256,44 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
                   </Tooltip>
                 </TooltipProvider>
               </div>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
+              <div className="col-span-3 flex gap-2">
+                <div className="flex-1">
+                  <Input
                     id="due-date"
-                    variant={"outline"}
-                    className={cn(
-                      "col-span-3 justify-start text-left font-normal",
-                      !date && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {date ? format(date, "PPP") : <span>Pick a date</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={date}
-                    onSelect={setDate}
-                    initialFocus
-                    className="p-3 pointer-events-auto"
+                    value={dateInput}
+                    onChange={handleDateInputChange}
+                    placeholder="MM/DD/YYYY"
+                    className="w-full"
                   />
-                </PopoverContent>
-              </Popover>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Enter date in MM/DD/YYYY format
+                  </p>
+                </div>
+                <Popover open={showCalendar} onOpenChange={setShowCalendar}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-10 w-10"
+                      type="button"
+                    >
+                      <CalendarIcon className="h-4 w-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={date}
+                      onSelect={(newDate) => {
+                        setDate(newDate);
+                        setShowCalendar(false);
+                      }}
+                      initialFocus
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Due Time</Label>
