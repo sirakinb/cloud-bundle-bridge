@@ -1,5 +1,5 @@
 
-import { BookOpen, FileText, Home, Mic, Settings } from "lucide-react";
+import { BookOpen, FileText, Home, Mic, Settings, Calendar } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import {
@@ -29,6 +29,14 @@ export function AppSidebar() {
                   <Link to="/">
                     <Home />
                     <span>Dashboard</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <Link to="/calendar">
+                    <Calendar />
+                    <span>Calendar</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

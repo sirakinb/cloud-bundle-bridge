@@ -74,6 +74,10 @@ const TaskItem = ({ task }: TaskItemProps) => {
                 <HardHat className="h-3 w-3 mr-1" />
                 <span className="capitalize">{task.difficulty} Difficulty</span>
               </div>
+              <div className="flex items-center text-xs px-2 py-1 rounded-full text-muted-foreground bg-muted">
+                <Clock className="h-3 w-3 mr-1" />
+                <span>{task.duration} min</span>
+              </div>
             </div>
           </div>
         </div>

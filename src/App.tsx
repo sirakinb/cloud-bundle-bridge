@@ -12,6 +12,7 @@ import NotesPage from "./pages/NotesPage";
 import RecordPage from "./pages/RecordPage";
 import NewNotePage from "./pages/NewNotePage";
 import SettingsPage from "./pages/SettingsPage";
+import CalendarPage from "./pages/CalendarPage";
 import { SidebarProvider } from "./components/ui/sidebar";
 import { TaskProvider } from "./contexts/TaskContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -32,6 +33,7 @@ const App = () => (
                 <Route path="/tools" element={<ToolsPage />} />
                 <Route path="/resources" element={<ResourcesPage />} />
                 <Route path="/notes" element={<NotesPage />} />
+                <Route path="/calendar" element={<CalendarPage />} />
                 <Route path="/record" element={<RecordPage />} />
                 <Route path="/new-note" element={<NewNotePage />} />
                 <Route path="/settings" element={<SettingsPage />} />

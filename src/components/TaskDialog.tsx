@@ -16,11 +16,12 @@ import { toast } from "@/hooks/use-toast";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
-import { CalendarIcon, Clock, Flame, HardHat } from "lucide-react";
+import { CalendarIcon, Clock, HardHat } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useTasks } from "@/contexts/TaskContext";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Slider } from "@/components/ui/slider";
 
 type TaskDialogProps = {
   open: boolean;
@@ -34,10 +35,10 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
   const [hour, setHour] = useState<string>("12");
   const [minute, setMinute] = useState<string>("00");
   const [ampm, setAmPm] = useState<string>("PM");
-  const [urgency, setUrgency] = useState<'low' | 'medium' | 'high'>('medium');
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
+  const [duration, setDuration] = useState<number>(60); // Default 60 minutes
   
-  const { addTask } = useTasks();
+  const { addTask, calculateUrgency } = useTasks();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,18 +59,21 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
       dueDateTime.setHours(hours, parseInt(minute), 0);
     }
 
+    // Calculate urgency based on due date (will be shown in toast message)
+    const calculatedUrgency = calculateUrgency(dueDateTime);
+
     // Add task to context
     addTask({
       name: taskName,
       description,
       dueDate: dueDateTime,
-      urgency,
       difficulty,
+      duration,
     });
 
     toast({
       title: "Task created",
-      description: `Your task has been added successfully${dueDateTime ? ` and is due on ${format(dueDateTime, "PPP 'at' h:mm a")}` : ""}`,
+      description: `Your task has been added successfully${dueDateTime ? ` and is due on ${format(dueDateTime, "PPP 'at' h:mm a")}` : ""}. Urgency: ${calculatedUrgency.toUpperCase()}`,
     });
 
     // Reset form
@@ -79,9 +83,28 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
     setHour("12");
     setMinute("00");
     setAmPm("PM");
-    setUrgency('medium');
     setDifficulty('medium');
+    setDuration(60);
     onOpenChange(false);
+  };
+
+  // Update duration when difficulty changes
+  const handleDifficultyChange = (val: string) => {
+    const difficultyValue = val as 'easy' | 'medium' | 'hard';
+    setDifficulty(difficultyValue);
+    
+    // Set default durations based on difficulty
+    switch (difficultyValue) {
+      case 'easy':
+        setDuration(30);
+        break;
+      case 'medium':
+        setDuration(60);
+        break;
+      case 'hard':
+        setDuration(120);
+        break;
+    }
   };
 
   // Generate hours for the select dropdown
@@ -102,7 +125,7 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
           <DialogHeader>
             <DialogTitle>Add New Task</DialogTitle>
             <DialogDescription>
-              Create a new task for your study plan
+              Create a new task. Urgency will be calculated automatically based on the due date.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -206,31 +229,6 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
               </div>
             </div>
 
-            {/* Urgency Selection */}
-            <div className="grid grid-cols-4 items-start gap-4">
-              <Label className="text-right pt-2">
-                Urgency <Flame className="inline h-4 w-4 text-red-500" />
-              </Label>
-              <RadioGroup
-                value={urgency}
-                onValueChange={(val) => setUrgency(val as 'low' | 'medium' | 'high')}
-                className="col-span-3 flex space-x-4"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="low" id="urgency-low" />
-                  <Label htmlFor="urgency-low" className="cursor-pointer">Low</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="medium" id="urgency-medium" />
-                  <Label htmlFor="urgency-medium" className="cursor-pointer">Medium</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="high" id="urgency-high" />
-                  <Label htmlFor="urgency-high" className="cursor-pointer">High</Label>
-                </div>
-              </RadioGroup>
-            </div>
-
             {/* Difficulty Selection */}
             <div className="grid grid-cols-4 items-start gap-4">
               <Label className="text-right pt-2">
@@ -238,7 +236,7 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
               </Label>
               <RadioGroup
                 value={difficulty}
-                onValueChange={(val) => setDifficulty(val as 'easy' | 'medium' | 'hard')}
+                onValueChange={handleDifficultyChange}
                 className="col-span-3 flex space-x-4"
               >
                 <div className="flex items-center space-x-2">
@@ -254,6 +252,25 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
                   <Label htmlFor="difficulty-hard" className="cursor-pointer">Hard</Label>
                 </div>
               </RadioGroup>
+            </div>
+
+            {/* Task Duration */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">
+                Duration
+              </Label>
+              <div className="col-span-2">
+                <Slider
+                  value={[duration]}
+                  min={15}
+                  max={240}
+                  step={15}
+                  onValueChange={(values) => setDuration(values[0])}
+                />
+              </div>
+              <div className="text-sm">
+                {duration} minutes
+              </div>
             </div>
 
           </div>
