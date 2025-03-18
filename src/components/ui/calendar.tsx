@@ -66,7 +66,7 @@ function Calendar({
           months: "flex flex-col sm:flex-row space-y-2 sm:space-x-2 sm:space-y-0",
           month: "space-y-2",
           caption: "flex justify-center pt-1 relative items-center",
-          caption_label: "text-xs font-medium hidden", // Hide default caption
+          caption_label: "text-xs font-medium hidden text-foreground", // Hide default caption but ensure text color
           nav: "space-x-1 flex items-center hidden", // Hide default nav
           nav_button: cn(
             buttonVariants({ variant: "outline" }),
@@ -82,7 +82,7 @@ function Calendar({
           cell: "h-8 w-8 text-center text-xs p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
           day: cn(
             buttonVariants({ variant: "ghost" }),
-            "h-8 w-8 p-0 font-normal text-xs aria-selected:opacity-100"
+            "h-8 w-8 p-0 font-normal text-xs aria-selected:opacity-100 text-foreground"
           ),
           day_range_end: "day-range-end",
           day_selected:
