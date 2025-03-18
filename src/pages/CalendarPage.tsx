@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { format, startOfWeek, addDays, isSameDay, isToday, differenceInDays, endOfWeek, parseISO, isWithinInterval } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -176,12 +177,12 @@ const CalendarPage = () => {
   return (
     <div className="flex min-h-screen w-full">
       <AppSidebar />
-      <SidebarInset className="p-4 overflow-hidden">
+      <SidebarInset className="p-3 lg:p-4 overflow-hidden">
         <div className="w-full max-w-7xl mx-auto">
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3">
             {/* Calendar Header */}
             <div className="flex justify-between items-center">
-              <h1 className="text-2xl font-bold font-heading text-primary">Calendar</h1>
+              <h1 className="text-xl lg:text-2xl font-bold font-heading text-primary">Calendar</h1>
               <div className="flex items-center gap-2">
                 <Tabs defaultValue="day" value={view} onValueChange={(v) => setView(v as 'day' | 'week')}>
                   <TabsList>
@@ -203,8 +204,8 @@ const CalendarPage = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 h-[calc(100vh-120px)] overflow-hidden">
-              {/* Calendar Component */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 h-[calc(100vh-120px)] overflow-hidden">
+              {/* Mini Calendar Component */}
               <Card className="md:col-span-1 overflow-auto">
                 <CardContent className="p-2">
                   <Calendar
