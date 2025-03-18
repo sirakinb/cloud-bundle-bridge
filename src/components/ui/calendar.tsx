@@ -42,7 +42,7 @@ function Calendar({
         
         <button
           onClick={goToCurrentMonth}
-          className="text-xs font-medium hover:underline"
+          className="text-xs font-medium hover:underline text-foreground"
           aria-label="Current month"
         >
           {format(currentMonth, "MMMM yyyy")}
@@ -66,8 +66,8 @@ function Calendar({
           months: "flex flex-col sm:flex-row space-y-2 sm:space-x-2 sm:space-y-0",
           month: "space-y-2",
           caption: "flex justify-center pt-1 relative items-center",
-          caption_label: "text-xs font-medium hidden", // Hide the default caption as we have our own
-          nav: "space-x-1 flex items-center hidden", // Hide the default nav as we have our own
+          caption_label: "text-xs font-medium hidden", // Hide default caption
+          nav: "space-x-1 flex items-center hidden", // Hide default nav
           nav_button: cn(
             buttonVariants({ variant: "outline" }),
             "h-6 w-6 bg-transparent p-0 opacity-50 hover:opacity-100"
