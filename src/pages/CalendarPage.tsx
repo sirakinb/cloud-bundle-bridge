@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { format, startOfWeek, addDays, isSameDay, isToday, differenceInDays, endOfWeek, parseISO, isWithinInterval } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -84,8 +83,8 @@ const CalendarPage = () => {
   };
 
   // Generate time blocks for the day
-  const timeBlocks = Array.from({ length: 24 }, (_, i) => {
-    return format(new Date().setHours(i, 0, 0, 0), 'h:mm a');
+  const timeBlocks = Array.from({ length: 12 }, (_, i) => {
+    return format(new Date().setHours(i + 8, 0, 0, 0), 'h:mm a');
   });
 
   // Calculate task position in the day view
@@ -177,64 +176,63 @@ const CalendarPage = () => {
   return (
     <div className="flex min-h-screen w-full">
       <AppSidebar />
-      <SidebarInset className="p-6">
+      <SidebarInset className="p-4 overflow-hidden">
         <div className="w-full max-w-7xl mx-auto">
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4">
             {/* Calendar Header */}
             <div className="flex justify-between items-center">
-              <h1 className="text-3xl font-bold font-heading text-primary">Calendar</h1>
-              <div className="flex items-center gap-4">
+              <h1 className="text-2xl font-bold font-heading text-primary">Calendar</h1>
+              <div className="flex items-center gap-2">
                 <Tabs defaultValue="day" value={view} onValueChange={(v) => setView(v as 'day' | 'week')}>
                   <TabsList>
                     <TabsTrigger value="day">Day</TabsTrigger>
                     <TabsTrigger value="week">Week</TabsTrigger>
                   </TabsList>
                 </Tabs>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="icon" onClick={() => navigateDate('prev')}>
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="icon" onClick={() => navigateDate('prev')} className="h-8 w-8">
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" onClick={() => setSelectedDate(new Date())}>
+                  <Button variant="outline" onClick={() => setSelectedDate(new Date())} className="h-8 text-xs">
                     Today
                   </Button>
-                  <Button variant="outline" size="icon" onClick={() => navigateDate('next')}>
+                  <Button variant="outline" size="icon" onClick={() => navigateDate('next')} className="h-8 w-8">
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 h-[calc(100vh-120px)] overflow-hidden">
               {/* Calendar Component */}
-              <Card className="md:col-span-1">
-                <CardContent className="p-4">
+              <Card className="md:col-span-1 overflow-auto">
+                <CardContent className="p-2">
                   <Calendar
                     mode="single"
                     selected={selectedDate}
                     onSelect={(date) => date && setSelectedDate(date)}
-                    className="rounded-md border pointer-events-auto"
+                    className="rounded-md border"
                   />
                 </CardContent>
               </Card>
 
               {/* Calendar Schedule View */}
-              <div className="md:col-span-3">
+              <div className="md:col-span-3 overflow-hidden">
                 <Card className="h-full">
-                  <CardContent className="p-4">
+                  <CardContent className="p-2 h-full overflow-hidden">
                     {view === 'day' ? (
-                      <div>
-                        <h2 className="text-2xl font-semibold mb-4">
+                      <div className="h-full flex flex-col">
+                        <h2 className="text-xl font-semibold mb-2">
                           {isToday(selectedDate) ? 'Today' : format(selectedDate, 'EEEE, MMMM d, yyyy')}
                         </h2>
                         
-                        <div className="relative border rounded-md min-h-[40rem]">
+                        <div className="relative border rounded-md flex-1 overflow-auto">
                           {/* Time indicators */}
-                          <div className="absolute top-0 left-0 w-16 h-full border-r">
-                            {timeBlocks.map((time, index) => (
+                          <div className="absolute top-0 left-0 w-14 h-full border-r">
+                            {timeBlocks.map((time) => (
                               <div 
                                 key={time} 
-                                className="h-24 border-b text-xs text-muted-foreground flex items-start justify-center pt-1"
-                                style={{ height: '6rem' }}
+                                className="h-16 border-b text-xs text-muted-foreground flex items-start justify-center pt-1"
                               >
                                 {time}
                               </div>
@@ -242,13 +240,12 @@ const CalendarPage = () => {
                           </div>
                           
                           {/* Tasks positioned by time */}
-                          <div className="ml-16 relative">
+                          <div className="ml-14 relative">
                             {/* Hour grid lines */}
-                            {timeBlocks.map((time, index) => (
+                            {timeBlocks.map((time) => (
                               <div 
                                 key={time} 
-                                className="border-b w-full bg-background"
-                                style={{ height: '6rem' }}
+                                className="border-b w-full bg-background h-16"
                               />
                             ))}
                             
@@ -257,7 +254,7 @@ const CalendarPage = () => {
                               <div 
                                 className="absolute w-full h-0.5 bg-red-500 z-10"
                                 style={{ 
-                                  top: `${new Date().getHours() * 6 + (new Date().getMinutes() / 60) * 6}rem` 
+                                  top: `${(new Date().getHours() - 8) * 4 + (new Date().getMinutes() / 60) * 4}rem` 
                                 }}
                               >
                                 <div className="absolute -left-1 -top-1.5 rounded-full w-3 h-3 bg-red-500" />
@@ -268,33 +265,25 @@ const CalendarPage = () => {
                             {getTasksForDate(selectedDate).map(task => (
                               <div 
                                 key={task.id}
-                                className={`absolute rounded-md p-2 border-l-4 mx-2 overflow-hidden shadow-sm ${getUrgencyColor(task.urgency)} ${task.completed ? 'opacity-60' : ''}`}
-                                style={getTaskPosition(task, selectedDate)}
+                                className={`absolute rounded-md p-1 border-l-4 mx-1 overflow-hidden shadow-sm ${getUrgencyColor(task.urgency)} ${task.completed ? 'opacity-60' : ''}`}
+                                style={{
+                                  ...getTaskPosition(task, selectedDate),
+                                  maxHeight: '4rem',
+                                  width: 'calc(100% - 0.5rem)'
+                                }}
                               >
                                 <div className="flex flex-col h-full overflow-hidden relative">
                                   {getTaskStatusIndicator(task)}
-                                  <h3 className={`font-medium text-sm truncate ${task.completed ? 'line-through' : ''}`}>{task.name}</h3>
+                                  <h3 className={`font-medium text-xs truncate ${task.completed ? 'line-through' : ''}`}>
+                                    {task.name}
+                                  </h3>
                                   
-                                  <div className="flex items-center gap-2 text-xs mt-1">
+                                  <div className="flex items-center gap-1 text-xs mt-0.5">
                                     <span className="flex items-center">
-                                      <Clock className="h-3 w-3 mr-1" />
+                                      <Clock className="h-2.5 w-2.5 mr-0.5" />
                                       {task.duration} min
                                     </span>
-                                    <span className="flex items-center">
-                                      <HardHat className="h-3 w-3 mr-1" />
-                                      {task.difficulty}
-                                    </span>
                                   </div>
-                                  
-                                  <div className="text-xs text-muted-foreground mt-1">
-                                    {getTaskDateText(task)}
-                                  </div>
-                                  
-                                  {task.description && (
-                                    <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                                      {task.description}
-                                    </p>
-                                  )}
                                 </div>
                               </div>
                             ))}
@@ -302,58 +291,55 @@ const CalendarPage = () => {
                         </div>
                       </div>
                     ) : (
-                      <div>
-                        <h2 className="text-2xl font-semibold mb-4">
+                      <div className="h-full flex flex-col">
+                        <h2 className="text-xl font-semibold mb-2">
                           Week of {format(startOfCurrentWeek, 'MMMM d, yyyy')}
                         </h2>
                         
-                        <div className="grid grid-cols-7 border rounded-md">
+                        <div className="grid grid-cols-7 border rounded-md flex-1 overflow-auto">
                           {/* Day headers */}
-                          {weekDays.map(day => (
-                            <div 
-                              key={day.dayName} 
-                              className={cn(
-                                "p-2 border-b text-center",
-                                isToday(day.date) && "bg-primary/5 font-bold"
-                              )}
-                            >
-                              <div className="text-sm font-medium">{day.dayName}</div>
-                              <div className={cn(
-                                "flex items-center justify-center rounded-full mx-auto w-8 h-8",
-                                isToday(day.date) && "bg-primary text-primary-foreground"
-                              )}>
-                                {day.dayNumber}
+                          <div className="contents">
+                            {weekDays.map(day => (
+                              <div 
+                                key={day.dayName} 
+                                className={cn(
+                                  "p-1 border-b text-center sticky top-0 bg-background z-10",
+                                  isToday(day.date) && "bg-primary/5 font-bold"
+                                )}
+                              >
+                                <div className="text-xs font-medium">{day.dayName}</div>
+                                <div className={cn(
+                                  "flex items-center justify-center rounded-full mx-auto w-6 h-6 text-xs",
+                                  isToday(day.date) && "bg-primary text-primary-foreground"
+                                )}>
+                                  {day.dayNumber}
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                           
                           {/* Week view content */}
                           {weekDays.map(day => (
                             <div 
                               key={day.dayName} 
                               className={cn(
-                                "p-2 min-h-[20rem] border-r relative",
+                                "p-1 border-r min-h-[10rem] relative",
                                 isToday(day.date) && "bg-primary/5"
                               )}
                             >
                               {getTasksForDate(day.date).map(task => (
                                 <div 
                                   key={task.id} 
-                                  className={`mb-2 p-2 rounded-md border-l-4 text-sm ${getUrgencyColor(task.urgency)} ${task.completed ? 'opacity-60' : ''}`}
+                                  className={`mb-1 p-1 rounded-md border-l-2 text-xs ${getUrgencyColor(task.urgency)} ${task.completed ? 'opacity-60' : ''}`}
                                 >
                                   <div className={`font-medium truncate ${task.completed ? 'line-through' : ''}`}>
                                     {task.name}
-                                    {getTaskStatusIndicator(task)}
-                                  </div>
-                                  
-                                  <div className="text-xs text-muted-foreground">
-                                    {getTaskDateText(task)}
                                   </div>
                                   
                                   {task.dueDate && (
-                                    <div className="text-xs text-muted-foreground flex items-center mt-1">
-                                      <Clock className="h-3 w-3 mr-1" />
-                                      {format(task.dueDate, 'h:mm a')} · {task.duration} min
+                                    <div className="text-xs text-muted-foreground flex items-center">
+                                      <Clock className="h-2.5 w-2.5 mr-0.5" />
+                                      {format(task.dueDate, 'h:mm a')}
                                     </div>
                                   )}
                                 </div>
