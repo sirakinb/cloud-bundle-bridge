@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { format, startOfWeek, addDays, isSameDay, isToday, differenceInDays, endOfWeek, parseISO, isWithinInterval } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -84,7 +83,7 @@ const CalendarPage = () => {
   };
 
   // Generate time blocks for the day
-  const timeBlocks = Array.from({ length: 12 }, (_, i) => {
+  const timeBlocks = Array.from({ length: 17 }, (_, i) => {
     return format(new Date().setHours(i + 8, 0, 0, 0), 'h:mm a');
   });
 
@@ -120,11 +119,12 @@ const CalendarPage = () => {
       const hour = task.dueDate.getHours();
       const minute = task.dueDate.getMinutes();
       
-      // Calculate top position based on time (each hour is 6rem tall)
-      const topPosition = hour * 6 + (minute / 60) * 6;
+      // Calculate top position based on time (each hour is 4rem tall)
+      // Adjust calculation to account for the 8am start time
+      const topPosition = (hour - 8) * 4 + (minute / 60) * 4;
       
-      // Calculate height based on task duration (1 hour = 6rem)
-      const height = (task.duration / 60) * 6;
+      // Calculate height based on task duration (1 hour = 4rem)
+      const height = (task.duration / 60) * 4;
       
       return {
         top: `${topPosition}rem`,

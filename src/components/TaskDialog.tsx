@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -145,9 +144,9 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
   };
 
   // Generate hours for the select dropdown
-  const hours = Array.from({ length: 12 }, (_, i) => {
-    const hour = i + 1;
-    return hour.toString();
+  const hours = Array.from({ length: 17 }, (_, i) => {
+    const hour = i + 8;
+    return hour <= 12 ? hour.toString() : (hour - 12).toString();
   });
 
   // Generate minutes for the select dropdown
@@ -428,3 +427,4 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
 };
 
 export default TaskDialog;
+
