@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,14 +19,17 @@ import {
   FileText,
   Folder,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  Volume2
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { toast as sonnerToast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { useTheme } from "@/contexts/ThemeContext";
-import { saveRecording, getRecordings, deleteRecording, Recording, getFolders, Folder as FolderType } from "@/utils/recordingUtils";
+import { saveRecording, getRecordings, deleteRecording, Recording, getFolders, Folder as FolderType, generateAudioBlob } from "@/utils/recordingUtils";
 import { FolderDialog } from "@/components/FolderDialog";
+import { AudioPlayer } from "@/components/AudioPlayer";
+import { formatTime } from "@/utils/formatUtils";
 import { 
   Accordion,
   AccordionContent,
@@ -48,6 +50,7 @@ const RecordPage = () => {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>("default");
   const [showRecordings, setShowRecordings] = useState(false);
   const [expandedFolders, setExpandedFolders] = useState<string[]>(['default']);
+  const [selectedRecording, setSelectedRecording] = useState<Recording | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
   const { colorScheme } = useTheme();
@@ -81,6 +84,10 @@ const RecordPage = () => {
         ? prev.filter(id => id !== folderId)
         : [...prev, folderId]
     );
+  };
+
+  const handlePlayRecording = (recording: Recording) => {
+    setSelectedRecording(recording);
   };
 
   const startRecording = () => {
@@ -149,14 +156,15 @@ const RecordPage = () => {
   };
   
   const handleSaveRecording = (folderId: string) => {
-    // Create new recording object
+    // Create new recording object with dummy audio URL for demo
     const newRecording: Recording = {
       id: Date.now().toString(36),
       title: recordingTitle,
       notes: recordingNotes,
       duration: recordingTime,
       date: new Date().toISOString(),
-      folderId: folderId
+      folderId: folderId,
+      audioUrl: generateAudioBlob() // Add dummy audio data
     };
     
     // Save recording
@@ -169,8 +177,6 @@ const RecordPage = () => {
       title: "Recording Saved",
       description: `Your recording "${recordingTitle}" has been saved.`,
     });
-    
-    // Don't reset form after stopping to allow for review
   };
   
   const restartRecording = () => {
@@ -212,20 +218,20 @@ const RecordPage = () => {
   };
   
   const handleDeleteRecording = (id: string) => {
+    // If the deleted recording is currently selected, clear the selection
+    if (selectedRecording && selectedRecording.id === id) {
+      setSelectedRecording(null);
+    }
+    
     deleteRecording(id);
     setRecordings(recordings.filter(rec => rec.id !== id));
+    
     toast({
       title: "Recording Deleted",
       description: "The recording has been removed.",
     });
   };
   
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString(undefined, { 
@@ -275,7 +281,17 @@ const RecordPage = () => {
                     </Button>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-6">
+                    {/* Audio player for selected recording */}
+                    {selectedRecording && selectedRecording.audioUrl && (
+                      <div className="mb-6">
+                        <AudioPlayer 
+                          audioUrl={selectedRecording.audioUrl} 
+                          title={selectedRecording.title}
+                        />
+                      </div>
+                    )}
+                  
                     <Accordion type="multiple" defaultValue={['default']} className="w-full">
                       {Object.keys(recordingsByFolder).map((folderId) => (
                         <AccordionItem key={folderId} value={folderId}>
@@ -291,8 +307,16 @@ const RecordPage = () => {
                           <AccordionContent>
                             <div className="pl-6 space-y-2">
                               {recordingsByFolder[folderId].map((recording) => (
-                                <div key={recording.id} className="flex justify-between items-start border rounded-lg p-4 hover:bg-accent/5 transition-colors">
-                                  <div>
+                                <div 
+                                  key={recording.id} 
+                                  className={`flex justify-between items-start border rounded-lg p-4 transition-colors cursor-pointer ${
+                                    selectedRecording && selectedRecording.id === recording.id 
+                                      ? 'bg-primary/10 border-primary/30' 
+                                      : 'hover:bg-accent/5'
+                                  }`}
+                                  onClick={() => handlePlayRecording(recording)}
+                                >
+                                  <div className="flex-grow">
                                     <div className="font-medium text-foreground">{recording.title}</div>
                                     <div className="text-sm text-muted-foreground mt-1">
                                       {formatDate(recording.date)} • {formatTime(recording.duration)}
@@ -301,12 +325,27 @@ const RecordPage = () => {
                                       <p className="text-sm mt-2 line-clamp-2 text-foreground/80">{recording.notes}</p>
                                     )}
                                   </div>
-                                  <div className="flex gap-2">
+                                  <div className="flex gap-2 ml-4">
                                     <Button 
                                       variant="outline" 
                                       size="sm" 
                                       className="h-8 w-8 p-0"
-                                      onClick={() => handleDeleteRecording(recording.id)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handlePlayRecording(recording);
+                                      }}
+                                    >
+                                      <Volume2 className="h-4 w-4" />
+                                      <span className="sr-only">Play</span>
+                                    </Button>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      className="h-8 w-8 p-0"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteRecording(recording.id);
+                                      }}
                                     >
                                       <Trash2 className="h-4 w-4" />
                                       <span className="sr-only">Delete</span>
