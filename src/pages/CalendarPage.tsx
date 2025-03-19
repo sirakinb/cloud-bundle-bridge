@@ -86,7 +86,7 @@ const CalendarPage = () => {
     }
   };
 
-  // Generate time blocks for the day
+  // Generate time blocks for the day - extended from 8am to midnight (17 hours total)
   const timeBlocks = Array.from({ length: 17 }, (_, i) => {
     return format(new Date().setHours(i + 8, 0, 0, 0), 'h:mm a');
   });

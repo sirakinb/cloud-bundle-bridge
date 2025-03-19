@@ -48,27 +48,56 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
 
   const handleDateInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    setDateInput(value);
     
-    // Try to parse the date string
-    try {
-      // Check common formats: MM/DD/YYYY, MM-DD-YYYY, etc.
-      const formats = ['MM/dd/yyyy', 'MM-dd-yyyy', 'yyyy/MM/dd', 'yyyy-MM-dd', 'M/d/yyyy', 'M-d-yyyy'];
+    // Only allow digits and separators (/, -, .)
+    const sanitizedValue = value.replace(/[^\d\/\-\.]/g, '');
+    
+    // Enforce MM/DD/YYYY format with max length of 10 characters
+    if (sanitizedValue.length <= 10) {
+      setDateInput(sanitizedValue);
       
-      for (const dateFormat of formats) {
-        try {
-          const parsedDate = parse(value, dateFormat, new Date());
-          // Check if the date is valid
-          if (!isNaN(parsedDate.getTime())) {
-            setDate(parsedDate);
-            return;
+      // Try to parse the date string
+      try {
+        // Check common formats: MM/DD/YYYY, MM-DD-YYYY, etc.
+        const formats = ['MM/dd/yyyy', 'MM-dd-yyyy', 'yyyy/MM/dd', 'yyyy-MM-dd', 'M/d/yyyy', 'M-d-yyyy'];
+        
+        for (const dateFormat of formats) {
+          try {
+            const parsedDate = parse(sanitizedValue, dateFormat, new Date());
+            // Check if the date is valid
+            if (!isNaN(parsedDate.getTime())) {
+              setDate(parsedDate);
+              return;
+            }
+          } catch (err) {
+            // Try next format
           }
-        } catch (err) {
-          // Try next format
         }
+      } catch (error) {
+        // Invalid date, leave date as undefined
       }
-    } catch (error) {
-      // Invalid date, leave date as undefined
+    }
+  };
+
+  // Automatically add / characters to help with MM/DD/YYYY format
+  const formatDateInput = (input: string): string => {
+    // Remove any non-digit characters
+    const digitsOnly = input.replace(/\D/g, '');
+    
+    if (digitsOnly.length <= 2) {
+      return digitsOnly;
+    } else if (digitsOnly.length <= 4) {
+      return `${digitsOnly.slice(0, 2)}/${digitsOnly.slice(2)}`;
+    } else {
+      return `${digitsOnly.slice(0, 2)}/${digitsOnly.slice(2, 4)}/${digitsOnly.slice(4, 8)}`;
+    }
+  };
+
+  // This function will be called on blur to format the date input properly
+  const handleDateInputBlur = () => {
+    // Format the date input on blur
+    if (dateInput.match(/^\d+$/)) {
+      setDateInput(formatDateInput(dateInput));
     }
   };
 
@@ -143,7 +172,7 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
     }
   };
 
-  // Generate hours for the select dropdown
+  // Generate hours for the select dropdown - expanded from 8am to midnight
   const hours = Array.from({ length: 17 }, (_, i) => {
     const hour = i + 8;
     return hour <= 12 ? hour.toString() : (hour - 12).toString();
@@ -261,7 +290,9 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
                     id="due-date"
                     value={dateInput}
                     onChange={handleDateInputChange}
+                    onBlur={handleDateInputBlur}
                     placeholder="MM/DD/YYYY"
+                    maxLength={10}
                     className="w-full"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
@@ -427,4 +458,3 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
 };
 
 export default TaskDialog;
-
