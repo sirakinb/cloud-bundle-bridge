@@ -74,81 +74,82 @@ const generatePomodoroSessions = (
   // Calculate total number of Pomodoros needed
   const totalPomodoros = Math.ceil(totalDuration / POMODORO_LENGTH);
   
-  // Distribute pomodoros evenly across days
-  const pomodorosPerDay = Math.ceil(totalPomodoros / daysDifference);
+  // Distribute pomodoros evenly across days, with at least 1 per day if possible
+  let pomodorosPerDay = Math.ceil(totalPomodoros / daysDifference);
   
   let currentDate = new Date(startDate);
   let pomodorosCreated = 0;
+  let maxAttempts = totalPomodoros * 3; // Limit the number of attempts to prevent infinite loops
+  let attemptCount = 0;
   
-  while (pomodorosCreated < totalPomodoros && currentDate < dueDate) {
-    // Start sessions at 9 AM each day
+  // Try to create all required pomodoro sessions
+  while (pomodorosCreated < totalPomodoros && currentDate < dueDate && attemptCount < maxAttempts) {
+    attemptCount++;
+    
+    // Start sessions at 8 AM each day by default
     const sessionDate = new Date(currentDate);
-    sessionDate.setHours(9, 0, 0, 0);
+    sessionDate.setHours(8, 0, 0, 0);
     
-    // Create pomodoros for this day
-    const dayPomodoros = Math.min(pomodorosPerDay, totalPomodoros - pomodorosCreated);
+    // Calculate how many pomodoros to create for this day
+    // On the last day, make sure we create all remaining pomodoros
+    const isLastDay = differenceInDays(dueDate, currentDate) === 0;
+    const dayPomodoros = isLastDay 
+      ? Math.min(totalPomodoros - pomodorosCreated, 12) // Max 12 per day on last day (realistic limit)
+      : Math.min(pomodorosPerDay, totalPomodoros - pomodorosCreated);
     
-    for (let i = 0; i < dayPomodoros; i++) {
-      // Try different times until we find an available slot
-      let foundAvailableSlot = false;
-      
-      // Try different starting times, from 8am to 8pm (12 hour window)
-      for (let hourOffset = 0; hourOffset < 12; hourOffset++) {
-        // Try up to 4 different 30-minute slots within each hour
-        for (let minuteOffset = 0; minuteOffset < 4; minuteOffset++) {
-          const potentialStart = new Date(sessionDate);
-          // Start at 8am and try different times throughout the day
-          potentialStart.setHours(8 + hourOffset);
-          potentialStart.setMinutes(minuteOffset * 15);
+    // Try to create the desired number of pomodoros for this day
+    let dayPomodorosCreated = 0;
+    
+    // Try different time slots throughout the day (8am to 8pm)
+    for (let hourOffset = 0; hourOffset < 12 && dayPomodorosCreated < dayPomodoros; hourOffset++) {
+      // Try multiple time slots within each hour
+      for (let minuteOffset = 0; minuteOffset < 3 && dayPomodorosCreated < dayPomodoros; minuteOffset++) {
+        const potentialStart = new Date(sessionDate);
+        potentialStart.setHours(8 + hourOffset);
+        potentialStart.setMinutes(minuteOffset * 20); // Try at 0, 20, and 40 minutes past the hour
+        
+        const potentialEnd = new Date(potentialStart);
+        potentialEnd.setMinutes(potentialEnd.getMinutes() + POMODORO_LENGTH);
+        
+        // Check if both the start and end times are available
+        if (!isTimeUnavailable || 
+            (!isTimeUnavailable(potentialStart) && !isTimeUnavailable(potentialEnd))) {
           
-          const potentialEnd = new Date(potentialStart);
-          potentialEnd.setMinutes(potentialEnd.getMinutes() + POMODORO_LENGTH);
+          // This slot is available, create the session
+          sessions.push({
+            id: Math.random().toString(36).substring(2, 9),
+            taskId,
+            startTime: new Date(potentialStart),
+            endTime: new Date(potentialEnd),
+            completed: false
+          });
           
-          // Check if this time slot is available
-          if (!isTimeUnavailable || 
-              (!isTimeUnavailable(potentialStart) && !isTimeUnavailable(potentialEnd))) {
-            // This slot is available, create the session
-            sessions.push({
-              id: Math.random().toString(36).substring(2, 9),
-              taskId,
-              startTime: potentialStart,
-              endTime: potentialEnd,
-              completed: false
-            });
-            
-            pomodorosCreated++;
-            foundAvailableSlot = true;
-            break;
-          }
+          pomodorosCreated++;
+          dayPomodorosCreated++;
+          
+          // If we've created all needed pomodoros, break out
+          if (pomodorosCreated >= totalPomodoros) break;
         }
-        
-        if (foundAvailableSlot) break;
-      }
-      
-      // If we tried all slots and couldn't find any available time, just add it anyway
-      if (!foundAvailableSlot) {
-        const fallbackStart = new Date(sessionDate);
-        // Default to standard slot if all else fails
-        fallbackStart.setHours(8 + (i * 2)); 
-        fallbackStart.setMinutes(0);
-        
-        const fallbackEnd = new Date(fallbackStart);
-        fallbackEnd.setMinutes(fallbackEnd.getMinutes() + POMODORO_LENGTH);
-        
-        sessions.push({
-          id: Math.random().toString(36).substring(2, 9),
-          taskId,
-          startTime: fallbackStart,
-          endTime: fallbackEnd,
-          completed: false
-        });
-        
-        pomodorosCreated++;
       }
     }
     
     // Move to next day
     currentDate = addDays(currentDate, 1);
+    
+    // If we're approaching the due date and haven't scheduled all pomodoros,
+    // we may need to increase the pomodoros per day for remaining days
+    const remainingDays = Math.max(1, differenceInDays(dueDate, currentDate));
+    const remainingPomodoros = totalPomodoros - pomodorosCreated;
+    
+    if (remainingDays > 0 && remainingPomodoros > 0) {
+      pomodorosPerDay = Math.ceil(remainingPomodoros / remainingDays);
+    }
+  }
+  
+  // If we couldn't create all pomodoros due to unavailable times,
+  // try to fit remaining ones wherever possible
+  if (pomodorosCreated < totalPomodoros) {
+    console.warn(`Could only schedule ${pomodorosCreated} of ${totalPomodoros} required Pomodoro sessions due to time constraints.`);
   }
   
   return sessions;
