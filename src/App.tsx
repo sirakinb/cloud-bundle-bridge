@@ -4,6 +4,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { TaskProvider } from "./contexts/TaskContext";
 import { UnavailableTimesProvider } from "./contexts/UnavailableTimesContext";
 import { Toaster } from "./components/ui/sonner";
+import { SidebarProvider } from "./components/ui/sidebar";
 
 import IndexPage from "./pages/Index";
 import NotesPage from "./pages/NotesPage";
@@ -21,22 +22,24 @@ function App() {
   return (
     <BrowserRouter>
       <ThemeProvider>
-        <UnavailableTimesProvider>
-          <TaskProvider>
-            <Toaster />
-            <Routes>
-              <Route path="/" element={<IndexPage />} />
-              <Route path="/notes" element={<NotesPage />} />
-              <Route path="/notes/new" element={<NewNotePage />} />
-              <Route path="/calendar" element={<CalendarPage />} />
-              <Route path="/resources" element={<ResourcesPage />} />
-              <Route path="/tools" element={<ToolsPage />} />
-              <Route path="/record" element={<RecordPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </TaskProvider>
-        </UnavailableTimesProvider>
+        <SidebarProvider>
+          <UnavailableTimesProvider>
+            <TaskProvider>
+              <Toaster />
+              <Routes>
+                <Route path="/" element={<IndexPage />} />
+                <Route path="/notes" element={<NotesPage />} />
+                <Route path="/notes/new" element={<NewNotePage />} />
+                <Route path="/calendar" element={<CalendarPage />} />
+                <Route path="/resources" element={<ResourcesPage />} />
+                <Route path="/tools" element={<ToolsPage />} />
+                <Route path="/record" element={<RecordPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </TaskProvider>
+          </UnavailableTimesProvider>
+        </SidebarProvider>
       </ThemeProvider>
     </BrowserRouter>
   );
