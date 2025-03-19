@@ -6,14 +6,18 @@ import { Calendar } from "@/components/ui/calendar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Sidebar, SidebarInset } from "@/components/ui/sidebar";
 import { useTasks } from "@/contexts/TaskContext";
+import { useUnavailableTimes } from "@/contexts/UnavailableTimesContext";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, ChevronRight, Clock, Flame, HardHat } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Ban } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import UnavailableTimesDialog from "@/components/UnavailableTimesDialog";
 
 const CalendarPage = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [view, setView] = useState<'day' | 'week'>('day');
+  const [showUnavailableTimesDialog, setShowUnavailableTimesDialog] = useState(false);
   const { tasks, getTasksForDateRange } = useTasks();
+  const { isTimeBlockUnavailable, unavailableTimes } = useUnavailableTimes();
 
   // Get the start and end of the week for the weekly view
   const startOfCurrentWeek = startOfWeek(selectedDate, { weekStartsOn: 1 }); // Start on Monday
@@ -174,6 +178,13 @@ const CalendarPage = () => {
     return '';
   };
 
+  // Check if a time block is unavailable
+  const isTimeSlotUnavailable = (date: Date, hour: number): boolean => {
+    const timeToCheck = new Date(date);
+    timeToCheck.setHours(hour, 0, 0, 0);
+    return isTimeBlockUnavailable(timeToCheck);
+  };
+
   return (
     <div className="flex min-h-screen w-full">
       <AppSidebar />
@@ -184,6 +195,15 @@ const CalendarPage = () => {
             <div className="flex justify-between items-center">
               <h1 className="text-xl lg:text-2xl font-bold font-heading text-primary">Calendar</h1>
               <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowUnavailableTimesDialog(true)}
+                  className="flex items-center gap-1"
+                >
+                  <Ban className="h-4 w-4" />
+                  <span className="hidden md:inline">Unavailable Times</span>
+                </Button>
                 <Tabs defaultValue="day" value={view} onValueChange={(v) => setView(v as 'day' | 'week')}>
                   <TabsList>
                     <TabsTrigger value="day">Day</TabsTrigger>
@@ -242,13 +262,27 @@ const CalendarPage = () => {
                           
                           {/* Tasks positioned by time */}
                           <div className="ml-14 relative">
-                            {/* Hour grid lines */}
-                            {timeBlocks.map((time) => (
-                              <div 
-                                key={time} 
-                                className="border-b w-full bg-background h-16"
-                              />
-                            ))}
+                            {/* Hour grid lines and unavailable time indicators */}
+                            {timeBlocks.map((time, index) => {
+                              const hour = index + 8;
+                              const isUnavailable = isTimeSlotUnavailable(selectedDate, hour);
+                              
+                              return (
+                                <div 
+                                  key={time} 
+                                  className={cn(
+                                    "border-b w-full h-16",
+                                    isUnavailable ? "bg-red-50 dark:bg-red-950/10" : "bg-background"
+                                  )}
+                                >
+                                  {isUnavailable && (
+                                    <div className="h-full w-full flex items-center justify-center opacity-20">
+                                      <Ban className="h-6 w-6 text-red-500" />
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                             
                             {/* Current time indicator */}
                             {isToday(selectedDate) && (
@@ -328,6 +362,27 @@ const CalendarPage = () => {
                                 isToday(day.date) && "bg-primary/5"
                               )}
                             >
+                              {/* Show indicators for unavailable times */}
+                              {unavailableTimes
+                                .filter(block => block.dayOfWeek === day.date.getDay())
+                                .map(block => (
+                                  <div 
+                                    key={block.id}
+                                    className="mb-1 p-1 rounded-md border-l-2 text-xs bg-red-50 dark:bg-red-950/10 border-red-300"
+                                  >
+                                    <div className="font-medium truncate flex items-center">
+                                      <Ban className="h-3 w-3 mr-0.5 text-red-500" />
+                                      {block.startHour}:{block.startMinute.toString().padStart(2, '0')} - 
+                                      {block.endHour}:{block.endMinute.toString().padStart(2, '0')}
+                                    </div>
+                                    {block.label && (
+                                      <div className="text-xs text-muted-foreground truncate">
+                                        {block.label}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              
                               {getTasksForDate(day.date).map(task => (
                                 <div 
                                   key={task.id} 
@@ -357,6 +412,12 @@ const CalendarPage = () => {
           </div>
         </div>
       </SidebarInset>
+      
+      {/* Unavailable Times Dialog */}
+      <UnavailableTimesDialog 
+        open={showUnavailableTimesDialog} 
+        onOpenChange={setShowUnavailableTimesDialog} 
+      />
     </div>
   );
 };

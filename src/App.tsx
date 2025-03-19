@@ -1,51 +1,45 @@
 
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
-import ToolsPage from "./pages/ToolsPage";
-import ResourcesPage from "./pages/ResourcesPage";
-import NotesPage from "./pages/NotesPage";
-import RecordPage from "./pages/RecordPage";
-import NewNotePage from "./pages/NewNotePage";
-import SettingsPage from "./pages/SettingsPage";
-import CalendarPage from "./pages/CalendarPage";
-import { SidebarProvider } from "./components/ui/sidebar";
-import { TaskProvider } from "./contexts/TaskContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { TaskProvider } from "./contexts/TaskContext";
+import { UnavailableTimesProvider } from "./contexts/UnavailableTimesContext";
+import { Toaster } from "./components/ui/sonner";
 
-const queryClient = new QueryClient();
+import IndexPage from "./pages/Index";
+import NotesPage from "./pages/NotesPage";
+import NewNotePage from "./pages/NewNotePage";
+import CalendarPage from "./pages/CalendarPage";
+import ResourcesPage from "./pages/ResourcesPage";
+import ToolsPage from "./pages/ToolsPage";
+import RecordPage from "./pages/RecordPage";
+import SettingsPage from "./pages/SettingsPage";
+import NotFound from "./pages/NotFound";
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider>
-      <TooltipProvider>
-        <SidebarProvider>
-          <TaskProvider>
+import "./App.css";
+
+function App() {
+  return (
+    <BrowserRouter>
+      <ThemeProvider>
+        <TaskProvider>
+          <UnavailableTimesProvider>
             <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/tools" element={<ToolsPage />} />
-                <Route path="/resources" element={<ResourcesPage />} />
-                <Route path="/notes" element={<NotesPage />} />
-                <Route path="/calendar" element={<CalendarPage />} />
-                <Route path="/record" element={<RecordPage />} />
-                <Route path="/new-note" element={<NewNotePage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </TaskProvider>
-        </SidebarProvider>
-      </TooltipProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
-);
+            <Routes>
+              <Route path="/" element={<IndexPage />} />
+              <Route path="/notes" element={<NotesPage />} />
+              <Route path="/notes/new" element={<NewNotePage />} />
+              <Route path="/calendar" element={<CalendarPage />} />
+              <Route path="/resources" element={<ResourcesPage />} />
+              <Route path="/tools" element={<ToolsPage />} />
+              <Route path="/record" element={<RecordPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </UnavailableTimesProvider>
+        </TaskProvider>
+      </ThemeProvider>
+    </BrowserRouter>
+  );
+}
 
 export default App;

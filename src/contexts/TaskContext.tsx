@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
 import { differenceInDays, isToday, addDays, subDays, addMinutes } from "date-fns";
+import { useUnavailableTimes } from "./UnavailableTimesContext";
 
 export type TaskType = 'one-time' | 'multi-day';
 
@@ -59,7 +60,8 @@ const generatePomodoroSessions = (
   taskId: string, 
   startDate?: Date, 
   dueDate?: Date, 
-  totalDuration: number = 60
+  totalDuration: number = 60,
+  isTimeUnavailable?: (date: Date) => boolean
 ): PomodoroSession[] => {
   if (!startDate || !dueDate) return [];
   
@@ -87,22 +89,62 @@ const generatePomodoroSessions = (
     const dayPomodoros = Math.min(pomodorosPerDay, totalPomodoros - pomodorosCreated);
     
     for (let i = 0; i < dayPomodoros; i++) {
-      const sessionStart = new Date(sessionDate);
-      // Each session starts 30 minutes after the previous one (25 min work + 5 min break)
-      sessionStart.setMinutes(sessionStart.getMinutes() + (i * 30));
+      // Try different times until we find an available slot
+      let foundAvailableSlot = false;
       
-      const sessionEnd = new Date(sessionStart);
-      sessionEnd.setMinutes(sessionEnd.getMinutes() + POMODORO_LENGTH);
+      // Try different starting times, from 8am to 8pm (12 hour window)
+      for (let hourOffset = 0; hourOffset < 12; hourOffset++) {
+        // Try up to 4 different 30-minute slots within each hour
+        for (let minuteOffset = 0; minuteOffset < 4; minuteOffset++) {
+          const potentialStart = new Date(sessionDate);
+          // Start at 8am and try different times throughout the day
+          potentialStart.setHours(8 + hourOffset);
+          potentialStart.setMinutes(minuteOffset * 15);
+          
+          const potentialEnd = new Date(potentialStart);
+          potentialEnd.setMinutes(potentialEnd.getMinutes() + POMODORO_LENGTH);
+          
+          // Check if this time slot is available
+          if (!isTimeUnavailable || 
+              (!isTimeUnavailable(potentialStart) && !isTimeUnavailable(potentialEnd))) {
+            // This slot is available, create the session
+            sessions.push({
+              id: Math.random().toString(36).substring(2, 9),
+              taskId,
+              startTime: potentialStart,
+              endTime: potentialEnd,
+              completed: false
+            });
+            
+            pomodorosCreated++;
+            foundAvailableSlot = true;
+            break;
+          }
+        }
+        
+        if (foundAvailableSlot) break;
+      }
       
-      sessions.push({
-        id: Math.random().toString(36).substring(2, 9),
-        taskId,
-        startTime: sessionStart,
-        endTime: sessionEnd,
-        completed: false
-      });
-      
-      pomodorosCreated++;
+      // If we tried all slots and couldn't find any available time, just add it anyway
+      if (!foundAvailableSlot) {
+        const fallbackStart = new Date(sessionDate);
+        // Default to standard slot if all else fails
+        fallbackStart.setHours(8 + (i * 2)); 
+        fallbackStart.setMinutes(0);
+        
+        const fallbackEnd = new Date(fallbackStart);
+        fallbackEnd.setMinutes(fallbackEnd.getMinutes() + POMODORO_LENGTH);
+        
+        sessions.push({
+          id: Math.random().toString(36).substring(2, 9),
+          taskId,
+          startTime: fallbackStart,
+          endTime: fallbackEnd,
+          completed: false
+        });
+        
+        pomodorosCreated++;
+      }
     }
     
     // Move to next day
@@ -114,6 +156,7 @@ const generatePomodoroSessions = (
 
 export function TaskProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const { isTimeBlockUnavailable } = useUnavailableTimes();
   
   const calculateUrgency = (dueDate?: Date): 'low' | 'medium' | 'high' => {
     if (!dueDate) return 'low';
@@ -198,7 +241,13 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     let pomodoroSessions: PomodoroSession[] | undefined = undefined;
     
     if (task.taskType === 'multi-day' && startDate && task.dueDate) {
-      pomodoroSessions = generatePomodoroSessions(taskId, startDate, task.dueDate, duration);
+      pomodoroSessions = generatePomodoroSessions(
+        taskId, 
+        startDate, 
+        task.dueDate, 
+        duration,
+        isTimeBlockUnavailable
+      );
     }
     
     const newTask = {
@@ -236,7 +285,13 @@ export function TaskProvider({ children }: { children: ReactNode }) {
           // Regenerate pomodoro sessions if this is a multi-day task
           let pomodoroSessions = task.pomodoroSessions;
           if (task.taskType === 'multi-day' && startDate && task.dueDate) {
-            pomodoroSessions = generatePomodoroSessions(task.id, startDate, task.dueDate, duration);
+            pomodoroSessions = generatePomodoroSessions(
+              task.id, 
+              startDate, 
+              task.dueDate, 
+              duration,
+              isTimeBlockUnavailable
+            );
           }
           
           return { 
