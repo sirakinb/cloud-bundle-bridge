@@ -21,8 +21,8 @@ function App() {
   return (
     <BrowserRouter>
       <ThemeProvider>
-        <TaskProvider>
-          <UnavailableTimesProvider>
+        <UnavailableTimesProvider>
+          <TaskProvider>
             <Toaster />
             <Routes>
               <Route path="/" element={<IndexPage />} />
@@ -35,8 +35,8 @@ function App() {
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
-          </UnavailableTimesProvider>
-        </TaskProvider>
+          </TaskProvider>
+        </UnavailableTimesProvider>
       </ThemeProvider>
     </BrowserRouter>
   );
