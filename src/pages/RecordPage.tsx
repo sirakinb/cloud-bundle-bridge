@@ -17,14 +17,23 @@ import {
   Save,
   FolderPlus,
   Trash2,
-  FileText
+  FileText,
+  Folder,
+  ChevronRight,
+  ChevronDown
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { toast as sonnerToast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { useTheme } from "@/contexts/ThemeContext";
-import { saveRecording, getRecordings, deleteRecording, Recording } from "@/utils/recordingUtils";
+import { saveRecording, getRecordings, deleteRecording, Recording, getFolders, Folder as FolderType } from "@/utils/recordingUtils";
 import { FolderDialog } from "@/components/FolderDialog";
+import { 
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 const RecordPage = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -34,17 +43,45 @@ const RecordPage = () => {
   const [recordingTitle, setRecordingTitle] = useState("");
   const [recordingNotes, setRecordingNotes] = useState("");
   const [recordings, setRecordings] = useState<Recording[]>([]);
+  const [folders, setFolders] = useState<FolderType[]>([]);
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>("default");
   const [showRecordings, setShowRecordings] = useState(false);
+  const [expandedFolders, setExpandedFolders] = useState<string[]>(['default']);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
   const { colorScheme } = useTheme();
 
   useEffect(() => {
-    // Load recordings when component mounts
+    // Load recordings and folders when component mounts
     setRecordings(getRecordings());
+    setFolders(getFolders());
   }, []);
+
+  // Group recordings by folder
+  const recordingsByFolder = recordings.reduce((acc, recording) => {
+    const folderId = recording.folderId || 'default';
+    if (!acc[folderId]) {
+      acc[folderId] = [];
+    }
+    acc[folderId].push(recording);
+    return acc;
+  }, {} as Record<string, Recording[]>);
+
+  // Get folder name by ID
+  const getFolderName = (folderId: string): string => {
+    const folder = folders.find(f => f.id === folderId);
+    return folder ? folder.name : 'Default';
+  };
+
+  // Function to toggle expanded state of a folder
+  const toggleFolderExpanded = (folderId: string) => {
+    setExpandedFolders(prev => 
+      prev.includes(folderId) 
+        ? prev.filter(id => id !== folderId)
+        : [...prev, folderId]
+    );
+  };
 
   const startRecording = () => {
     if (!recordingTitle.trim()) {
@@ -204,7 +241,7 @@ const RecordPage = () => {
       <SidebarInset className="p-6">
         <div className="w-full max-w-4xl mx-auto">
           <div className="flex justify-between items-center mb-8">
-            <h1 className="text-3xl font-bold">Record Lecture</h1>
+            <h1 className="text-3xl font-bold text-foreground">Record Lecture</h1>
             <div>
               <Button 
                 variant="outline"
@@ -220,14 +257,14 @@ const RecordPage = () => {
           {showRecordings ? (
             <Card>
               <CardHeader>
-                <CardTitle>My Recordings</CardTitle>
+                <CardTitle className="text-foreground">My Recordings</CardTitle>
                 <CardDescription>Manage your saved recordings</CardDescription>
               </CardHeader>
               <CardContent>
                 {recordings.length === 0 ? (
                   <div className="text-center py-8">
                     <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-lg font-medium mb-2">No recordings yet</p>
+                    <p className="text-lg font-medium mb-2 text-foreground">No recordings yet</p>
                     <p className="text-muted-foreground mb-4">Your saved recordings will appear here</p>
                     <Button 
                       onClick={() => setShowRecordings(false)}
@@ -239,30 +276,49 @@ const RecordPage = () => {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {recordings.map((recording) => (
-                      <div key={recording.id} className="flex justify-between items-start border rounded-lg p-4 hover:bg-accent/5 transition-colors">
-                        <div>
-                          <div className="font-medium">{recording.title}</div>
-                          <div className="text-sm text-muted-foreground mt-1">
-                            {formatDate(recording.date)} • {formatTime(recording.duration)}
-                          </div>
-                          {recording.notes && (
-                            <p className="text-sm mt-2 line-clamp-2">{recording.notes}</p>
-                          )}
-                        </div>
-                        <div className="flex gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="h-8 w-8 p-0"
-                            onClick={() => handleDeleteRecording(recording.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">Delete</span>
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                    <Accordion type="multiple" defaultValue={['default']} className="w-full">
+                      {Object.keys(recordingsByFolder).map((folderId) => (
+                        <AccordionItem key={folderId} value={folderId}>
+                          <AccordionTrigger className="hover:no-underline text-foreground">
+                            <div className="flex items-center">
+                              <Folder className="h-4 w-4 mr-2 text-primary" />
+                              <span>{getFolderName(folderId)}</span>
+                              <span className="ml-2 text-xs text-muted-foreground">
+                                ({recordingsByFolder[folderId].length})
+                              </span>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <div className="pl-6 space-y-2">
+                              {recordingsByFolder[folderId].map((recording) => (
+                                <div key={recording.id} className="flex justify-between items-start border rounded-lg p-4 hover:bg-accent/5 transition-colors">
+                                  <div>
+                                    <div className="font-medium text-foreground">{recording.title}</div>
+                                    <div className="text-sm text-muted-foreground mt-1">
+                                      {formatDate(recording.date)} • {formatTime(recording.duration)}
+                                    </div>
+                                    {recording.notes && (
+                                      <p className="text-sm mt-2 line-clamp-2 text-foreground/80">{recording.notes}</p>
+                                    )}
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      className="h-8 w-8 p-0"
+                                      onClick={() => handleDeleteRecording(recording.id)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                      <span className="sr-only">Delete</span>
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
                   </div>
                 )}
               </CardContent>
@@ -271,7 +327,7 @@ const RecordPage = () => {
             <>
               <Card className="mb-6">
                 <CardHeader>
-                  <CardTitle>Recording Information</CardTitle>
+                  <CardTitle className="text-foreground">Recording Information</CardTitle>
                   <CardDescription>Provide details about the lecture you are recording</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
