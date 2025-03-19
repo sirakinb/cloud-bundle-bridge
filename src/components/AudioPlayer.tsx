@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Play, Pause, Volume2, VolumeX } from "lucide-react";
@@ -18,13 +18,37 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, title }) => 
   const [isMuted, setIsMuted] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
+  // Auto-play when a new recording is selected
+  useEffect(() => {
+    if (audioRef.current) {
+      // Reset player state for new recordings
+      setCurrentTime(0);
+      setIsPlaying(false);
+      
+      // Load the new audio source
+      audioRef.current.load();
+      console.log("Loading audio URL:", audioUrl);
+    }
+  }, [audioUrl]);
+
   const togglePlay = () => {
     if (!audioRef.current) return;
     
     if (isPlaying) {
       audioRef.current.pause();
     } else {
-      audioRef.current.play();
+      // Ensure audio is loaded before playing
+      const playPromise = audioRef.current.play();
+      
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            console.log("Audio playback started successfully");
+          })
+          .catch(error => {
+            console.error("Audio playback failed:", error);
+          });
+      }
     }
     setIsPlaying(!isPlaying);
   };
@@ -37,6 +61,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, title }) => 
   const handleLoadedMetadata = () => {
     if (!audioRef.current) return;
     setDuration(audioRef.current.duration);
+    console.log("Audio metadata loaded, duration:", audioRef.current.duration);
   };
 
   const handleSliderChange = (value: number[]) => {
@@ -79,6 +104,11 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, title }) => 
     }
   };
 
+  const handleError = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+    console.error("Audio error:", e);
+    setIsPlaying(false);
+  };
+
   return (
     <div className="p-4 bg-accent/10 rounded-lg">
       <audio
@@ -87,6 +117,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, title }) => 
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={handleEnded}
+        onError={handleError}
       />
       
       <div className="text-sm font-medium mb-2 text-foreground">{title}</div>
