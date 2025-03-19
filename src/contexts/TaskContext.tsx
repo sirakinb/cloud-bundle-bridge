@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
 import { differenceInDays, isToday, addDays, subDays, addMinutes } from "date-fns";
 import { useUnavailableTimes } from "./UnavailableTimesContext";
@@ -68,88 +67,156 @@ const generatePomodoroSessions = (
   const sessions: PomodoroSession[] = [];
   const daysDifference = Math.max(1, differenceInDays(dueDate, startDate));
   
-  // Standard Pomodoro: 25 min work, 5 min break
+  // Standard Pomodoro: 25 min work
   const POMODORO_LENGTH = 25; // in minutes
   
   // Calculate total number of Pomodoros needed
   const totalPomodoros = Math.ceil(totalDuration / POMODORO_LENGTH);
   
-  // Distribute pomodoros evenly across days, with at least 1 per day if possible
-  let pomodorosPerDay = Math.ceil(totalPomodoros / daysDifference);
+  // Calculate minimum pomodoros per day (evenly distribute across all days)
+  let minPomodorosPerDay = Math.floor(totalPomodoros / daysDifference);
   
+  // Calculate remaining pomodoros after even distribution
+  let remainingPomodoros = totalPomodoros - (minPomodorosPerDay * daysDifference);
+  
+  // Create a distribution plan - start with minimum per day
+  const distributionPlan: number[] = Array(daysDifference).fill(minPomodorosPerDay);
+  
+  // Distribute remaining pomodoros (one extra to some days)
+  for (let i = 0; i < remainingPomodoros; i++) {
+    distributionPlan[i % daysDifference]++;
+  }
+  
+  // Now generate the actual pomodoro sessions based on the distribution plan
   let currentDate = new Date(startDate);
-  let pomodorosCreated = 0;
-  let maxAttempts = totalPomodoros * 3; // Limit the number of attempts to prevent infinite loops
-  let attemptCount = 0;
+  let dayIndex = 0;
   
-  // Try to create all required pomodoro sessions
-  while (pomodorosCreated < totalPomodoros && currentDate < dueDate && attemptCount < maxAttempts) {
-    attemptCount++;
-    
-    // Start sessions at 8 AM each day by default
-    const sessionDate = new Date(currentDate);
-    sessionDate.setHours(8, 0, 0, 0);
-    
-    // Calculate how many pomodoros to create for this day
-    // On the last day, make sure we create all remaining pomodoros
-    const isLastDay = differenceInDays(dueDate, currentDate) === 0;
-    const dayPomodoros = isLastDay 
-      ? Math.min(totalPomodoros - pomodorosCreated, 12) // Max 12 per day on last day (realistic limit)
-      : Math.min(pomodorosPerDay, totalPomodoros - pomodorosCreated);
-    
-    // Try to create the desired number of pomodoros for this day
-    let dayPomodorosCreated = 0;
-    
-    // Try different time slots throughout the day (8am to 8pm)
-    for (let hourOffset = 0; hourOffset < 12 && dayPomodorosCreated < dayPomodoros; hourOffset++) {
-      // Try multiple time slots within each hour
-      for (let minuteOffset = 0; minuteOffset < 3 && dayPomodorosCreated < dayPomodoros; minuteOffset++) {
-        const potentialStart = new Date(sessionDate);
-        potentialStart.setHours(8 + hourOffset);
-        potentialStart.setMinutes(minuteOffset * 20); // Try at 0, 20, and 40 minutes past the hour
-        
-        const potentialEnd = new Date(potentialStart);
-        potentialEnd.setMinutes(potentialEnd.getMinutes() + POMODORO_LENGTH);
-        
-        // Check if both the start and end times are available
-        if (!isTimeUnavailable || 
-            (!isTimeUnavailable(potentialStart) && !isTimeUnavailable(potentialEnd))) {
-          
-          // This slot is available, create the session
-          sessions.push({
-            id: Math.random().toString(36).substring(2, 9),
-            taskId,
-            startTime: new Date(potentialStart),
-            endTime: new Date(potentialEnd),
-            completed: false
-          });
-          
-          pomodorosCreated++;
-          dayPomodorosCreated++;
-          
-          // If we've created all needed pomodoros, break out
-          if (pomodorosCreated >= totalPomodoros) break;
-        }
-      }
+  while (dayIndex < distributionPlan.length) {
+    const pomodorosForThisDay = distributionPlan[dayIndex];
+    if (pomodorosForThisDay > 0) {
+      const dayPomodoros = createPomodorosForDay(
+        taskId,
+        new Date(currentDate),
+        pomodorosForThisDay,
+        isTimeUnavailable
+      );
+      
+      sessions.push(...dayPomodoros);
     }
     
     // Move to next day
     currentDate = addDays(currentDate, 1);
-    
-    // If we're approaching the due date and haven't scheduled all pomodoros,
-    // we may need to increase the pomodoros per day for remaining days
-    const remainingDays = Math.max(1, differenceInDays(dueDate, currentDate));
-    const remainingPomodoros = totalPomodoros - pomodorosCreated;
-    
-    if (remainingDays > 0 && remainingPomodoros > 0) {
-      pomodorosPerDay = Math.ceil(remainingPomodoros / remainingDays);
+    dayIndex++;
+  }
+  
+  return sessions;
+};
+
+// Helper function to create multiple pomodoro sessions for a specific day
+const createPomodorosForDay = (
+  taskId: string,
+  date: Date,
+  count: number,
+  isTimeUnavailable?: (date: Date) => boolean
+): PomodoroSession[] => {
+  const sessions: PomodoroSession[] = [];
+  const POMODORO_LENGTH = 25; // minutes
+  const BREAK_LENGTH = 5; // minutes
+  
+  // Spread pomodoros throughout the day (8am - 8pm = 12 hours)
+  // If we need many in one day, we'll group them with breaks in between
+  
+  // Start sessions at 8 AM by default
+  const sessionDate = new Date(date);
+  sessionDate.setHours(8, 0, 0, 0);
+  
+  // Try to create pomodoro groups
+  let pomodorosCreated = 0;
+  let maxAttempts = count * 4; // Give ourselves plenty of attempts
+  let attemptCount = 0;
+  
+  // Try different start times throughout the day (8am to 7pm)
+  for (let hour = 8; hour < 20 && pomodorosCreated < count && attemptCount < maxAttempts; hour++) {
+    // Try multiple time slots within each hour
+    for (let minute = 0; minute < 60 && pomodorosCreated < count && attemptCount < maxAttempts; minute += 15) {
+      attemptCount++;
+      
+      // How many pomodoros can we fit in sequence here (with breaks)?
+      // Start with at least 1, up to 3 in a row
+      const maxSequentialPomodoros = Math.min(3, count - pomodorosCreated);
+      
+      // Check if we can fit at least one pomodoro here
+      let sequentialPomodoros = 0;
+      let currentSlotTime = new Date(sessionDate);
+      currentSlotTime.setHours(hour, minute, 0, 0);
+      
+      // Try to fit up to maxSequentialPomodoros in sequence
+      for (let i = 0; i < maxSequentialPomodoros; i++) {
+        const sessionStart = new Date(currentSlotTime);
+        const sessionEnd = new Date(sessionStart);
+        sessionEnd.setMinutes(sessionEnd.getMinutes() + POMODORO_LENGTH);
+        
+        // Check if this time slot is available
+        if (!isTimeUnavailable || 
+            (!isTimeUnavailable(sessionStart) && !isTimeUnavailable(sessionEnd))) {
+          sequentialPomodoros++;
+          
+          // Add this session
+          sessions.push({
+            id: Math.random().toString(36).substring(2, 9),
+            taskId,
+            startTime: new Date(sessionStart),
+            endTime: new Date(sessionEnd),
+            completed: false
+          });
+          
+          pomodorosCreated++;
+          
+          // Update current slot time to after a break
+          currentSlotTime = new Date(sessionEnd);
+          currentSlotTime.setMinutes(currentSlotTime.getMinutes() + BREAK_LENGTH);
+        } else {
+          // This slot isn't available, stop trying to add sequential pomodoros
+          break;
+        }
+        
+        // If we've added all needed pomodoros, exit
+        if (pomodorosCreated >= count) break;
+      }
+      
+      // If we added any pomodoros in this slot, jump ahead to the next 30-min boundary
+      if (sequentialPomodoros > 0) {
+        minute = Math.ceil(minute / 30) * 30;
+      }
     }
   }
   
-  // If we couldn't create all pomodoros due to unavailable times,
-  // try to fit remaining ones wherever possible
-  if (pomodorosCreated < totalPomodoros) {
-    console.warn(`Could only schedule ${pomodorosCreated} of ${totalPomodoros} required Pomodoro sessions due to time constraints.`);
+  // If we couldn't schedule all pomodoros due to unavailable times,
+  // create them anyway but mark them as potential conflicts
+  if (pomodorosCreated < count) {
+    console.warn(`Could only schedule ${pomodorosCreated} of ${count} required Pomodoro sessions for ${date.toDateString()} due to time constraints.`);
+    
+    // Add remaining pomodoros at 9pm (as a fallback)
+    let fallbackTime = new Date(date);
+    fallbackTime.setHours(21, 0, 0, 0);
+    
+    for (let i = pomodorosCreated; i < count; i++) {
+      const sessionStart = new Date(fallbackTime);
+      const sessionEnd = new Date(sessionStart);
+      sessionEnd.setMinutes(sessionEnd.getMinutes() + POMODORO_LENGTH);
+      
+      sessions.push({
+        id: Math.random().toString(36).substring(2, 9),
+        taskId,
+        startTime: sessionStart,
+        endTime: sessionEnd,
+        completed: false
+      });
+      
+      // Add a break between sessions
+      fallbackTime = new Date(sessionEnd);
+      fallbackTime.setMinutes(fallbackTime.getMinutes() + BREAK_LENGTH);
+    }
   }
   
   return sessions;
