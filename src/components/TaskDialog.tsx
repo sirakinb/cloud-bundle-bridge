@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,6 +67,7 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
             return;
           }
         } catch (e) {
+          // Continue trying other formats
         }
       }
       
@@ -86,6 +88,8 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
               }
             }
           } catch (e) {
+            // Ignore parsing errors
+          }
         }
       }
     } else {
@@ -121,6 +125,7 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
             }
           }
         } catch (e) {
+          // Ignore parsing errors
         }
       }
     }
