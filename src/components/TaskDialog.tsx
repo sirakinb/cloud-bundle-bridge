@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { format, isBefore, parse } from "date-fns";
+import { format, isBefore, isValid, parse } from "date-fns";
 import { CalendarIcon, Clock, HardHat, Info, Hourglass, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -46,40 +46,106 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
   
   const { addTask, calculateUrgency } = useTasks();
 
+  // Enhanced date input handler with more flexible format parsing
   const handleDateInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
+    setDateInput(value);
     
-    // Only allow digits and separators (/, -, .)
-    const sanitizedValue = value.replace(/[^\d\/\-\.]/g, '');
-    
-    // Enforce MM/DD/YYYY format with max length of 10 characters
-    if (sanitizedValue.length <= 10) {
-      setDateInput(sanitizedValue);
+    // Try to parse the date from various formats
+    if (value.trim() !== "") {
+      // Common date formats to try
+      const dateFormats = [
+        'MM/dd/yyyy', 'M/d/yyyy', 'MM-dd-yyyy', 'M-d-yyyy',
+        'yyyy/MM/dd', 'yyyy-MM-dd', 'yyyy/M/d', 'yyyy-M-d',
+        'MMM d, yyyy', 'MMMM d, yyyy', 'd MMM yyyy', 'd MMMM yyyy'
+      ];
       
-      // Try to parse the date string
-      try {
-        // Check common formats: MM/DD/YYYY, MM-DD-YYYY, etc.
-        const formats = ['MM/dd/yyyy', 'MM-dd-yyyy', 'yyyy/MM/dd', 'yyyy-MM-dd', 'M/d/yyyy', 'M-d-yyyy'];
-        
-        for (const dateFormat of formats) {
+      // Try each format until one works
+      for (const formatString of dateFormats) {
+        try {
+          const parsedDate = parse(value, formatString, new Date());
+          if (isValid(parsedDate)) {
+            setDate(parsedDate);
+            return;
+          }
+        } catch (e) {
+          // Continue to next format if parsing fails
+        }
+      }
+      
+      // Special handling for numeric-only input (auto-format while typing)
+      const digitsOnly = value.replace(/\D/g, '');
+      if (digitsOnly.length >= 4) {
+        let formattedDate;
+        // Try to format as MM/DD/YYYY
+        if (digitsOnly.length <= 8) {
           try {
-            const parsedDate = parse(sanitizedValue, dateFormat, new Date());
-            // Check if the date is valid
-            if (!isNaN(parsedDate.getTime())) {
-              setDate(parsedDate);
-              return;
+            // Extract potential month, day, year
+            const month = parseInt(digitsOnly.substring(0, 2));
+            const day = parseInt(digitsOnly.substring(2, 4));
+            const year = digitsOnly.length > 4 ? digitsOnly.substring(4) : new Date().getFullYear().toString();
+            
+            // Validate basic date ranges
+            if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+              formattedDate = `${month.toString().padStart(2, '0')}/${day.toString().padStart(2, '0')}/${year.padStart(4, '20')}`;
+              const attemptDate = parse(formattedDate, 'MM/dd/yyyy', new Date());
+              if (isValid(attemptDate)) {
+                setDate(attemptDate);
+              }
             }
-          } catch (err) {
-            // Try next format
+          } catch (e) {
+            // Failed to auto-format, continue
           }
         }
-      } catch (error) {
-        // Invalid date, leave date as undefined
+      }
+    } else {
+      // Clear date if input is empty
+      setDate(undefined);
+    }
+  };
+
+  // Format date input on blur for better user experience
+  const handleDateInputBlur = () => {
+    if (dateInput.trim() === "") {
+      setDate(undefined);
+      return;
+    }
+    
+    // If we have a valid date but the input doesn't match the expected format,
+    // update the input to match the expected format
+    if (date && isValid(date)) {
+      setDateInput(format(date, "MM/dd/yyyy"));
+    } else {
+      // Try to auto-format numeric input
+      const digitsOnly = dateInput.replace(/\D/g, '');
+      if (digitsOnly.length >= 4) {
+        try {
+          let formattedString = "";
+          
+          if (digitsOnly.length <= 4) {
+            // Format as MM/DD
+            formattedString = `${digitsOnly.substring(0, 2)}/${digitsOnly.substring(2, 4)}`;
+          } else if (digitsOnly.length <= 8) {
+            // Format as MM/DD/YYYY
+            formattedString = `${digitsOnly.substring(0, 2)}/${digitsOnly.substring(2, 4)}/${digitsOnly.substring(4).padStart(4, '20')}`;
+          }
+          
+          if (formattedString) {
+            setDateInput(formattedString);
+            // Try to parse the formatted string
+            const parsedDate = parse(formattedString, 'MM/dd/yyyy', new Date());
+            if (isValid(parsedDate)) {
+              setDate(parsedDate);
+            }
+          }
+        } catch (e) {
+          // Failed to format, keep as is
+        }
       }
     }
   };
 
-  // Automatically add / characters to help with MM/DD/YYYY format
+  // Automatically format numbers as dates
   const formatDateInput = (input: string): string => {
     // Remove any non-digit characters
     const digitsOnly = input.replace(/\D/g, '');
@@ -89,15 +155,10 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
     } else if (digitsOnly.length <= 4) {
       return `${digitsOnly.slice(0, 2)}/${digitsOnly.slice(2)}`;
     } else {
-      return `${digitsOnly.slice(0, 2)}/${digitsOnly.slice(2, 4)}/${digitsOnly.slice(4, 8)}`;
-    }
-  };
-
-  // This function will be called on blur to format the date input properly
-  const handleDateInputBlur = () => {
-    // Format the date input on blur
-    if (dateInput.match(/^\d+$/)) {
-      setDateInput(formatDateInput(dateInput));
+      const yearPart = digitsOnly.slice(4, 8);
+      // Add the current year as default if not specified
+      const year = yearPart.length > 0 ? yearPart : new Date().getFullYear().toString();
+      return `${digitsOnly.slice(0, 2)}/${digitsOnly.slice(2, 4)}/${year}`;
     }
   };
 
@@ -292,11 +353,10 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
                     onChange={handleDateInputChange}
                     onBlur={handleDateInputBlur}
                     placeholder="MM/DD/YYYY"
-                    maxLength={10}
                     className="w-full"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Enter date in MM/DD/YYYY format
+                    Enter date in MM/DD/YYYY format or select from calendar
                   </p>
                 </div>
                 <Popover open={showCalendar} onOpenChange={setShowCalendar}>
@@ -325,6 +385,7 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
                 </Popover>
               </div>
             </div>
+            
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Due Time</Label>
               <div className="col-span-3 flex space-x-2 items-center">
