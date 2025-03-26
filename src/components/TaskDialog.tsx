@@ -36,6 +36,7 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
   const [description, setDescription] = useState("");
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [dateInput, setDateInput] = useState("");
+  const [timeInput, setTimeInput] = useState("");
   const [hour, setHour] = useState<string>("12");
   const [minute, setMinute] = useState<string>("00");
   const [ampm, setAmPm] = useState<string>("PM");
@@ -46,21 +47,17 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
   
   const { addTask, calculateUrgency } = useTasks();
 
-  // Enhanced date input handler with more flexible format parsing
   const handleDateInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setDateInput(value);
     
-    // Try to parse the date from various formats
     if (value.trim() !== "") {
-      // Common date formats to try
       const dateFormats = [
         'MM/dd/yyyy', 'M/d/yyyy', 'MM-dd-yyyy', 'M-d-yyyy',
         'yyyy/MM/dd', 'yyyy-MM-dd', 'yyyy/M/d', 'yyyy-M-d',
         'MMM d, yyyy', 'MMMM d, yyyy', 'd MMM yyyy', 'd MMMM yyyy'
       ];
       
-      // Try each format until one works
       for (const formatString of dateFormats) {
         try {
           const parsedDate = parse(value, formatString, new Date());
@@ -69,23 +66,18 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
             return;
           }
         } catch (e) {
-          // Continue to next format if parsing fails
         }
       }
       
-      // Special handling for numeric-only input (auto-format while typing)
       const digitsOnly = value.replace(/\D/g, '');
       if (digitsOnly.length >= 4) {
         let formattedDate;
-        // Try to format as MM/DD/YYYY
         if (digitsOnly.length <= 8) {
           try {
-            // Extract potential month, day, year
             const month = parseInt(digitsOnly.substring(0, 2));
             const day = parseInt(digitsOnly.substring(2, 4));
             const year = digitsOnly.length > 4 ? digitsOnly.substring(4) : new Date().getFullYear().toString();
             
-            // Validate basic date ranges
             if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
               formattedDate = `${month.toString().padStart(2, '0')}/${day.toString().padStart(2, '0')}/${year.padStart(4, '20')}`;
               const attemptDate = parse(formattedDate, 'MM/dd/yyyy', new Date());
@@ -94,60 +86,47 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
               }
             }
           } catch (e) {
-            // Failed to auto-format, continue
-          }
         }
       }
     } else {
-      // Clear date if input is empty
       setDate(undefined);
     }
   };
 
-  // Format date input on blur for better user experience
   const handleDateInputBlur = () => {
     if (dateInput.trim() === "") {
       setDate(undefined);
       return;
     }
     
-    // If we have a valid date but the input doesn't match the expected format,
-    // update the input to match the expected format
     if (date && isValid(date)) {
       setDateInput(format(date, "MM/dd/yyyy"));
     } else {
-      // Try to auto-format numeric input
       const digitsOnly = dateInput.replace(/\D/g, '');
       if (digitsOnly.length >= 4) {
         try {
           let formattedString = "";
           
           if (digitsOnly.length <= 4) {
-            // Format as MM/DD
-            formattedString = `${digitsOnly.substring(0, 2)}/${digitsOnly.substring(2, 4)}`;
+            formattedString = `${digitsOnly.substring(0, 2)}/${digitsOnly.substring(2)}`;
           } else if (digitsOnly.length <= 8) {
-            // Format as MM/DD/YYYY
-            formattedString = `${digitsOnly.substring(0, 2)}/${digitsOnly.substring(2, 4)}/${digitsOnly.substring(4).padStart(4, '20')}`;
+            formattedString = `${digitsOnly.substring(0, 2)}/${digitsOnly.substring(2)}/${digitsOnly.substring(4).padStart(4, '20')}`;
           }
           
           if (formattedString) {
             setDateInput(formattedString);
-            // Try to parse the formatted string
             const parsedDate = parse(formattedString, 'MM/dd/yyyy', new Date());
             if (isValid(parsedDate)) {
               setDate(parsedDate);
             }
           }
         } catch (e) {
-          // Failed to format, keep as is
         }
       }
     }
   };
 
-  // Automatically format numbers as dates
   const formatDateInput = (input: string): string => {
-    // Remove any non-digit characters
     const digitsOnly = input.replace(/\D/g, '');
     
     if (digitsOnly.length <= 2) {
@@ -156,10 +135,92 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
       return `${digitsOnly.slice(0, 2)}/${digitsOnly.slice(2)}`;
     } else {
       const yearPart = digitsOnly.slice(4, 8);
-      // Add the current year as default if not specified
       const year = yearPart.length > 0 ? yearPart : new Date().getFullYear().toString();
       return `${digitsOnly.slice(0, 2)}/${digitsOnly.slice(2, 4)}/${year}`;
     }
+  };
+
+  const handleTimeInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setTimeInput(value);
+    
+    const cleanValue = value.replace(/[^0-9:aApPmM\s]/g, '');
+    
+    const twelveHourRegex = /^(\d{1,2})(?::(\d{1,2}))?(?:\s*)([aApP][mM])?$/;
+    const match = cleanValue.match(twelveHourRegex);
+    
+    if (match) {
+      const parsedHour = parseInt(match[1]);
+      let parsedMinute = match[2] ? parseInt(match[2]) : 0;
+      let parsedAmPm = match[3]?.toLowerCase() === 'pm' ? 'PM' : 'AM';
+      
+      if (!match[3]) {
+        parsedAmPm = ampm;
+      }
+      
+      if (parsedHour > 12) {
+        setHour("12");
+      } else if (parsedHour === 0) {
+        setHour("12");
+        parsedAmPm = 'AM';
+      } else {
+        setHour(parsedHour.toString());
+      }
+      
+      if (parsedMinute > 59) {
+        setMinute("59");
+      } else {
+        setMinute(parsedMinute.toString().padStart(2, '0'));
+      }
+      
+      setAmPm(parsedAmPm);
+      
+      const formattedTime = `${parsedHour}:${parsedMinute.toString().padStart(2, '0')} ${parsedAmPm}`;
+      setTimeInput(formattedTime);
+    }
+    
+    const twentyFourHourRegex = /^(\d{1,2})(?::(\d{1,2}))?$/;
+    const match24 = cleanValue.match(twentyFourHourRegex);
+    
+    if (match24 && !match) {
+      const parsedHour = parseInt(match24[1]);
+      let parsedMinute = match24[2] ? parseInt(match24[2]) : 0;
+      
+      if (parsedHour >= 0 && parsedHour <= 23) {
+        if (parsedHour === 0) {
+          setHour("12");
+          setAmPm("AM");
+        } else if (parsedHour === 12) {
+          setHour("12");
+          setAmPm("PM");
+        } else if (parsedHour > 12) {
+          setHour((parsedHour - 12).toString());
+          setAmPm("PM");
+        } else {
+          setHour(parsedHour.toString());
+          setAmPm("AM");
+        }
+        
+        if (parsedMinute > 59) {
+          setMinute("59");
+        } else {
+          setMinute(parsedMinute.toString().padStart(2, '0'));
+        }
+      }
+    }
+  };
+
+  const handleTimeInputBlur = () => {
+    if (timeInput.trim() === "") {
+      setHour("12");
+      setMinute("00");
+      setAmPm("PM");
+      setTimeInput("12:00 PM");
+      return;
+    }
+    
+    const formattedTime = `${hour}:${minute.padStart(2, '0')} ${ampm}`;
+    setTimeInput(formattedTime);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -173,7 +234,6 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
       return;
     }
 
-    // Prepare the full date with time if a date was selected
     let dueDateTime = undefined;
     if (date) {
       dueDateTime = new Date(date);
@@ -181,10 +241,8 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
       dueDateTime.setHours(hours, parseInt(minute), 0);
     }
 
-    // Calculate urgency based on due date (will be shown in toast message)
     const calculatedUrgency = calculateUrgency(dueDateTime);
 
-    // Add task to context
     addTask({
       name: taskName,
       description,
@@ -194,17 +252,16 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
       taskType,
     });
 
-    // Show toast with schedule information
     toast({
       title: "Task scheduled",
       description: `Your ${taskType === 'multi-day' ? 'multi-day' : 'one-time'} task has been scheduled${dueDateTime ? ` to be completed by ${format(dueDateTime, "PPP 'at' h:mm a")}` : ""}. Urgency: ${calculatedUrgency.toUpperCase()}`,
     });
 
-    // Reset form
     setTaskName("");
     setDescription("");
     setDate(undefined);
     setDateInput("");
+    setTimeInput("");
     setHour("12");
     setMinute("00");
     setAmPm("PM");
@@ -214,12 +271,10 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
     onOpenChange(false);
   };
 
-  // Update duration when difficulty changes
   const handleDifficultyChange = (val: string) => {
     const difficultyValue = val as 'easy' | 'medium' | 'hard';
     setDifficulty(difficultyValue);
     
-    // Set default durations based on difficulty
     switch (difficultyValue) {
       case 'easy':
         setDuration(30);
@@ -233,23 +288,25 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
     }
   };
 
-  // Generate hours for the select dropdown - expanded from 8am to midnight
   const hours = Array.from({ length: 17 }, (_, i) => {
     const hour = i + 8;
     return hour <= 12 ? hour.toString() : (hour - 12).toString();
   });
 
-  // Generate minutes for the select dropdown
   const minutes = Array.from({ length: 60 }, (_, i) => {
     return i.toString().padStart(2, "0");
   });
 
-  // Update dateInput when date changes via calendar
   React.useEffect(() => {
     if (date) {
       setDateInput(format(date, "MM/dd/yyyy"));
     }
   }, [date]);
+
+  React.useEffect(() => {
+    const formattedTime = `${hour}:${minute.padStart(2, '0')} ${ampm}`;
+    setTimeInput(formattedTime);
+  }, [hour, minute, ampm]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -287,7 +344,6 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
               />
             </div>
             
-            {/* Task Type Selection */}
             <div className="grid grid-cols-4 items-start gap-4">
               <Label className="text-right pt-2">Task Type</Label>
               <div className="col-span-3 grid grid-cols-2 gap-3">
@@ -389,7 +445,21 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Due Time</Label>
               <div className="col-span-3 flex space-x-2 items-center">
-                <div className="flex items-center">
+                <div className="flex-1 relative">
+                  <Input
+                    value={timeInput}
+                    onChange={handleTimeInputChange}
+                    onBlur={handleTimeInputBlur}
+                    placeholder="HH:MM AM/PM"
+                    className="w-full pr-8"
+                  />
+                  <Clock className="h-4 w-4 text-gray-400 absolute right-3 top-3" />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Enter time in 12-hour (1:30 PM) or 24-hour (13:30) format
+                  </p>
+                </div>
+                
+                <div className="hidden">
                   <Select value={hour} onValueChange={setHour}>
                     <SelectTrigger className="w-[70px]">
                       <SelectValue placeholder="Hour" />
@@ -419,21 +489,20 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
                   </Select>
                 </div>
 
-                <Select value={ampm} onValueChange={setAmPm}>
-                  <SelectTrigger className="w-[70px]">
-                    <SelectValue placeholder="AM/PM" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="AM">AM</SelectItem>
-                    <SelectItem value="PM">PM</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Clock className="h-4 w-4 text-gray-400" />
+                <div className="hidden">
+                  <Select value={ampm} onValueChange={setAmPm}>
+                    <SelectTrigger className="w-[70px]">
+                      <SelectValue placeholder="AM/PM" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="AM">AM</SelectItem>
+                      <SelectItem value="PM">PM</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 
-            {/* Difficulty Selection */}
             <div className="grid grid-cols-4 items-start gap-4">
               <div className="text-right flex items-center justify-end gap-1">
                 <Label className="pt-2">Difficulty</Label>
@@ -470,7 +539,6 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
               </RadioGroup>
             </div>
 
-            {/* Task Duration */}
             <div className="grid grid-cols-4 items-center gap-4">
               <div className="text-right flex items-center justify-end gap-1">
                 <Label>Duration</Label>
