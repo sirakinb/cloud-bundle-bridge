@@ -10,6 +10,7 @@ import { useTasks } from "@/contexts/TaskContext";
 import TaskItem from "@/components/TaskItem";
 import { Link, useNavigate } from "react-router-dom";
 import { useTheme } from "@/contexts/ThemeContext";
+import PrioritizedTaskList from "@/components/PrioritizedTaskList";
 
 const Index = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -17,8 +18,6 @@ const Index = () => {
   const navigate = useNavigate();
   const { colorScheme } = useTheme();
   
-  const todaysTasks = tasks;
-
   return (
     <div className="flex min-h-screen w-full">
       <AppSidebar />
@@ -84,10 +83,10 @@ const Index = () => {
             </Card>
           </div>
 
-          {/* Today's Tasks */}
+          {/* Optimized Daily Tasks */}
           <div className="mb-8">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold">Today's Tasks</h2>
+              <h2 className="text-2xl font-bold">Optimized To-Do List</h2>
               <Button 
                 variant="outline" 
                 size="sm" 
@@ -97,19 +96,25 @@ const Index = () => {
                 <Plus className="h-4 w-4" /> Add Task
               </Button>
             </div>
-            <Card className="transition-all duration-300 hover:shadow-md">
-              <CardContent className="p-6">
-                {todaysTasks.length === 0 ? (
-                  <p className="text-foreground/60">No tasks for today</p>
-                ) : (
-                  <div className="space-y-1">
-                    {todaysTasks.map((task) => (
-                      <TaskItem key={task.id} task={task} />
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <PrioritizedTaskList 
+              title="Today's Tasks" 
+              description="Optimized for maximum productivity" 
+              showOptimized={true}
+              maxDailyMinutes={240}
+            />
+          </div>
+
+          {/* All Upcoming Tasks */}
+          <div className="mb-8">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold">All Upcoming Tasks</h2>
+            </div>
+            <PrioritizedTaskList 
+              title="Prioritized Tasks" 
+              description="Sorted by urgency and deadline" 
+              showOptimized={false}
+              maxTasks={10}
+            />
           </div>
 
           {/* Recent Recordings */}
