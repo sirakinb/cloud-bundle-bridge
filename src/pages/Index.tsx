@@ -11,14 +11,12 @@ import TaskItem from "@/components/TaskItem";
 import { Link, useNavigate } from "react-router-dom";
 import { useTheme } from "@/contexts/ThemeContext";
 import PrioritizedTaskList from "@/components/PrioritizedTaskList";
-import AutoScheduleDialog from "@/components/AutoScheduleDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Drawer, DrawerContent, DrawerTrigger } from "@/components/ui/drawer";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 
 const Index = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [autoScheduleOpen, setAutoScheduleOpen] = useState(false);
   const { tasks } = useTasks();
   const navigate = useNavigate();
   const { colorScheme } = useTheme();
@@ -193,11 +191,7 @@ const Index = () => {
       <TaskDialog 
         open={dialogOpen} 
         onOpenChange={setDialogOpen} 
-        onAutoSchedule={() => setAutoScheduleOpen(true)}
       />
-      
-      {/* Auto Schedule Dialog */}
-      <AutoScheduleDialog open={autoScheduleOpen} onOpenChange={setAutoScheduleOpen} />
     </div>
   );
 };

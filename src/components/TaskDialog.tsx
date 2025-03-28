@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +16,7 @@ import { toast } from "@/hooks/use-toast";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, isBefore, isValid, parse } from "date-fns";
-import { CalendarIcon, Clock, HardHat, Info, Hourglass, Repeat, Calendar as CalendarIcon2 } from "lucide-react";
+import { CalendarIcon, Clock, HardHat, Info, Hourglass, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useTasks, TaskType } from "@/contexts/TaskContext";
@@ -257,10 +258,18 @@ const TaskDialog = ({ open, onOpenChange, onAutoSchedule }: TaskDialogProps) => 
       taskType,
     });
 
-    toast({
-      title: "Task scheduled",
-      description: `Your ${taskType === 'multi-day' ? 'multi-day' : 'one-time'} task has been scheduled${dueDateTime ? ` to be completed by ${format(dueDateTime, "PPP 'at' h:mm a")}` : ""}. Urgency: ${calculatedUrgency.toUpperCase()}`,
-    });
+    // Show a toast message based on task type
+    if (taskType === 'multi-day') {
+      toast({
+        title: "Task scheduled",
+        description: `Your multi-day task has been automatically divided into focus sessions until ${dueDateTime ? format(dueDateTime, "PPP") : "completion"}`,
+      });
+    } else {
+      toast({
+        title: "Task scheduled",
+        description: `Your one-time task has been scheduled${dueDateTime ? ` to be completed by ${format(dueDateTime, "PPP 'at' h:mm a")}` : ""}. Urgency: ${calculatedUrgency.toUpperCase()}`,
+      });
+    }
 
     setTaskName("");
     setDescription("");
@@ -382,28 +391,23 @@ const TaskDialog = ({ open, onOpenChange, onAutoSchedule }: TaskDialogProps) => 
                       taskType === 'multi-day' ? "text-primary" : "text-muted-foreground"
                     )} />
                     <h3 className="font-medium">Multi-day Task</h3>
-                    <p className="text-sm text-muted-foreground">Split into Pomodoro sessions</p>
+                    <p className="text-sm text-muted-foreground">
+                      Auto-divided into daily sessions
+                    </p>
                   </CardContent>
                 </Card>
               </div>
             </div>
             
-            {taskType === 'multi-day' && onAutoSchedule && (
+            {taskType === 'multi-day' && (
               <div className="grid grid-cols-4 items-center gap-4">
-                <div className="col-start-2 col-span-3">
-                  <Button 
-                    type="button"
-                    variant="outline" 
-                    className="w-full flex justify-center items-center gap-2"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      onAutoSchedule();
-                    }}
-                  >
-                    <CalendarIcon2 className="h-4 w-4" />
-                    Auto-Schedule Multiple Tasks
-                    <span className="text-xs text-muted-foreground">(Advanced options)</span>
-                  </Button>
+                <div></div>
+                <div className="col-span-3">
+                  <div className="bg-muted/50 p-3 rounded-md border border-muted">
+                    <p className="text-sm text-muted-foreground">
+                      Multi-day tasks will be automatically divided into daily focus sessions until the due date.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -419,8 +423,8 @@ const TaskDialog = ({ open, onOpenChange, onAutoSchedule }: TaskDialogProps) => 
                     <TooltipContent>
                       <p className="max-w-xs">
                         {taskType === 'multi-day' 
-                          ? "Multi-day tasks will be split into Pomodoro sessions (25-minute focused work periods) spread out between start and due date"
-                          : "Tasks will automatically be scheduled to start before the due date based on difficulty"}
+                          ? "Multi-day tasks will be automatically divided into daily focus sessions until the due date"
+                          : "Tasks will be scheduled to start before the due date based on difficulty"}
                       </p>
                     </TooltipContent>
                   </Tooltip>
@@ -538,7 +542,7 @@ const TaskDialog = ({ open, onOpenChange, onAutoSchedule }: TaskDialogProps) => 
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>{taskType === 'multi-day' 
-                        ? "Harder tasks will generate more Pomodoro sessions" 
+                        ? "Harder tasks will generate more focus sessions per day" 
                         : "Harder tasks will be scheduled to start earlier"}</p>
                     </TooltipContent>
                   </Tooltip>
@@ -575,7 +579,7 @@ const TaskDialog = ({ open, onOpenChange, onAutoSchedule }: TaskDialogProps) => 
                     <TooltipContent>
                       <p>
                         {taskType === 'multi-day' 
-                          ? "Total time needed, will be split into 25-minute Pomodoro sessions" 
+                          ? "Total time needed, will be automatically divided into daily focus sessions" 
                           : "How long the task will take to complete"}
                       </p>
                     </TooltipContent>
@@ -595,7 +599,7 @@ const TaskDialog = ({ open, onOpenChange, onAutoSchedule }: TaskDialogProps) => 
                 {duration} minutes
                 {taskType === 'multi-day' && (
                   <div className="text-xs text-muted-foreground mt-1">
-                    ≈ {Math.ceil(duration / 25)} Pomodoro sessions
+                    Auto-divided into daily sessions
                   </div>
                 )}
               </div>
