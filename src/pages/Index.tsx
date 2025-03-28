@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { File, Mic, Plus } from "lucide-react";
+import { File, Mic, Plus, Calendar } from "lucide-react";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Sidebar, SidebarInset } from "@/components/ui/sidebar";
 import TaskDialog from "@/components/TaskDialog";
@@ -11,9 +11,11 @@ import TaskItem from "@/components/TaskItem";
 import { Link, useNavigate } from "react-router-dom";
 import { useTheme } from "@/contexts/ThemeContext";
 import PrioritizedTaskList from "@/components/PrioritizedTaskList";
+import AutoScheduleDialog from "@/components/AutoScheduleDialog";
 
 const Index = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [autoScheduleOpen, setAutoScheduleOpen] = useState(false);
   const { tasks } = useTasks();
   const navigate = useNavigate();
   const { colorScheme } = useTheme();
@@ -47,7 +49,7 @@ const Index = () => {
           </div>
 
           {/* Action Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <Card 
               className="bg-accent/10 border-accent/20 transition-all duration-300 hover:shadow-xl hover:bg-accent/20 cursor-pointer group hover-glow glow-red"
               onClick={() => navigate('/record')}
@@ -67,7 +69,7 @@ const Index = () => {
 
             <Card 
               className="bg-accent/10 border-accent/20 transition-all duration-300 hover:shadow-xl hover:bg-accent/20 cursor-pointer group hover-glow glow-blue"
-              onClick={() => navigate('/new-note')}
+              onClick={() => navigate('/notes/new')}
             >
               <CardContent className="p-6">
                 <div className="flex items-center">
@@ -77,6 +79,23 @@ const Index = () => {
                   <div>
                     <h2 className="text-xl font-semibold mb-1 group-hover:text-primary transition-colors">New Note</h2>
                     <p className="text-foreground/70 group-hover:text-foreground/80 transition-colors">Create a new study note</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card 
+              className="bg-accent/10 border-accent/20 transition-all duration-300 hover:shadow-xl hover:bg-accent/20 cursor-pointer group hover-glow glow-green"
+              onClick={() => setAutoScheduleOpen(true)}
+            >
+              <CardContent className="p-6">
+                <div className="flex items-center">
+                  <div className="mr-4 bg-accent/30 p-3 rounded-full transition-all duration-300 group-hover:bg-accent/40 shadow-md">
+                    <Calendar className="h-6 w-6 text-primary transition-transform group-hover:scale-110" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold mb-1 group-hover:text-primary transition-colors">Auto-Schedule</h2>
+                    <p className="text-foreground/70 group-hover:text-foreground/80 transition-colors">Plan your work sessions</p>
                   </div>
                 </div>
               </CardContent>
@@ -131,6 +150,9 @@ const Index = () => {
 
       {/* Task Dialog */}
       <TaskDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      
+      {/* Auto Schedule Dialog */}
+      <AutoScheduleDialog open={autoScheduleOpen} onOpenChange={setAutoScheduleOpen} />
     </div>
   );
 };

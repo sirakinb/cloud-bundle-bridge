@@ -8,22 +8,22 @@ import { Sidebar, SidebarInset } from "@/components/ui/sidebar";
 import { useTasks } from "@/contexts/TaskContext";
 import { useUnavailableTimes } from "@/contexts/UnavailableTimesContext";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, ChevronRight, Clock, Ban } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Ban, Calendar as CalendarIcon } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import UnavailableTimesDialog from "@/components/UnavailableTimesDialog";
+import AutoScheduleDialog from "@/components/AutoScheduleDialog";
 
 const CalendarPage = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [view, setView] = useState<'day' | 'week'>('day');
   const [showUnavailableTimesDialog, setShowUnavailableTimesDialog] = useState(false);
+  const [showAutoScheduleDialog, setShowAutoScheduleDialog] = useState(false);
   const { tasks, getTasksForDateRange } = useTasks();
   const { isTimeBlockUnavailable, unavailableTimes } = useUnavailableTimes();
 
-  // Get the start and end of the week for the weekly view
   const startOfCurrentWeek = startOfWeek(selectedDate, { weekStartsOn: 1 }); // Start on Monday
   const endOfCurrentWeek = endOfWeek(selectedDate, { weekStartsOn: 1 });
   
-  // Create array of days for the week view
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const date = addDays(startOfCurrentWeek, i);
     return {
@@ -33,7 +33,6 @@ const CalendarPage = () => {
     };
   });
 
-  // Filter tasks for the selected date in day view
   const getTasksForDate = (date: Date) => {
     const dayStart = new Date(date);
     dayStart.setHours(0, 0, 0, 0);
@@ -42,24 +41,20 @@ const CalendarPage = () => {
     dayEnd.setHours(23, 59, 59, 999);
     
     return tasks.filter(task => {
-      // If the task has a startDate and dueDate, check if the selected date falls within that range
       if (task.startDate && task.dueDate) {
         return isWithinInterval(date, { start: task.startDate, end: task.dueDate });
       }
       
-      // If there's only a startDate, check if it matches the selected date
       if (task.startDate && !task.dueDate) {
         return isSameDay(task.startDate, date);
       }
       
-      // If there's only a dueDate, check if it matches the selected date
       if (!task.startDate && task.dueDate) {
         return isSameDay(task.dueDate, date);
       }
       
       return false;
     }).sort((a, b) => {
-      // Sort by due date time first
       if (a.dueDate && b.dueDate) {
         return a.dueDate.getTime() - b.dueDate.getTime();
       }
@@ -67,12 +62,10 @@ const CalendarPage = () => {
     });
   };
 
-  // Get all tasks for the week view
   const getTasksForWeek = () => {
     return getTasksForDateRange(startOfCurrentWeek, endOfCurrentWeek);
   };
 
-  // Get color based on urgency
   const getUrgencyColor = (urgency: string) => {
     switch (urgency) {
       case 'high':
@@ -86,48 +79,59 @@ const CalendarPage = () => {
     }
   };
 
-  // Generate time blocks for the day - extended from 8am to midnight (17 hours total)
   const timeBlocks = Array.from({ length: 17 }, (_, i) => {
     return format(new Date().setHours(i + 8, 0, 0, 0), 'h:mm a');
   });
 
-  // Calculate task position in the day view
   const getTaskPosition = (task: typeof tasks[0], date: Date) => {
-    // If task has both start and due dates, we need to spread it across days
-    if (task.startDate && task.dueDate) {
-      // If this is the start date, position it in the morning
-      if (isSameDay(task.startDate, date)) {
+    if (task.taskType === 'multi-day' && task.pomodoroSessions && task.pomodoroSessions.length > 0) {
+      const sessionsForDay = task.pomodoroSessions.filter(session => 
+        isSameDay(session.startTime, date)
+      );
+      
+      if (sessionsForDay.length > 0) {
+        const session = sessionsForDay[0];
+        const hour = session.startTime.getHours();
+        const minute = session.startTime.getMinutes();
+        
+        const topPosition = (hour - 8) * 4 + (minute / 60) * 4;
+        
+        const durationMs = session.endTime.getTime() - session.startTime.getTime();
+        const durationMinutes = durationMs / (1000 * 60);
+        const height = (durationMinutes / 60) * 4;
+        
         return {
-          top: '8rem', // Start around 8am
-          height: '4rem', // Show for 4 hours
-        };
-      }
-      // If this is the due date, position it to end by 5pm
-      else if (isSameDay(task.dueDate, date)) {
-        return {
-          top: '12rem', // Start around 12pm
-          height: '5rem', // Show for 5 hours
-        };
-      }
-      // For days in between, position in middle of day
-      else {
-        return {
-          top: '10rem', // Middle of work day
-          height: '3rem',
+          top: `${topPosition}rem`,
+          height: `${height}rem`,
         };
       }
     }
     
-    // For tasks with only a due date, show on the specified time
+    if (task.startDate && task.dueDate) {
+      if (isSameDay(task.startDate, date)) {
+        return {
+          top: '8rem',
+          height: '4rem',
+        };
+      }
+      if (isSameDay(task.dueDate, date)) {
+        return {
+          top: '12rem',
+          height: '5rem',
+        };
+      }
+      return {
+        top: '10rem',
+        height: '3rem',
+      };
+    }
+    
     if (task.dueDate) {
       const hour = task.dueDate.getHours();
       const minute = task.dueDate.getMinutes();
       
-      // Calculate top position based on time (each hour is 4rem tall)
-      // Adjust calculation to account for the 8am start time
       const topPosition = (hour - 8) * 4 + (minute / 60) * 4;
       
-      // Calculate height based on task duration (1 hour = 4rem)
       const height = (task.duration / 60) * 4;
       
       return {
@@ -136,14 +140,12 @@ const CalendarPage = () => {
       };
     }
     
-    // Default position if no dates are specified
     return {
       top: '9rem',
       height: '3rem',
     };
   };
 
-  // Handle navigation in the calendar
   const navigateDate = (direction: 'prev' | 'next') => {
     if (view === 'day') {
       setSelectedDate(prevDate => 
@@ -156,7 +158,6 @@ const CalendarPage = () => {
     }
   };
 
-  // Show task completion status visually
   const getTaskStatusIndicator = (task: typeof tasks[0]) => {
     if (task.completed) {
       return <div className="absolute top-0 right-0 h-3 w-3 bg-green-500 rounded-full"></div>;
@@ -164,7 +165,6 @@ const CalendarPage = () => {
     return null;
   };
 
-  // Get the display text for task dates
   const getTaskDateText = (task: typeof tasks[0]) => {
     if (task.startDate && task.dueDate) {
       return `${format(task.startDate, 'MMM d')} - ${format(task.dueDate, 'MMM d')}`;
@@ -178,7 +178,20 @@ const CalendarPage = () => {
     return '';
   };
 
-  // Check if a time block is unavailable
+  const getPomodoroSessionText = (task: typeof tasks[0], date: Date) => {
+    if (task.taskType === 'multi-day' && task.pomodoroSessions) {
+      const sessionsForDay = task.pomodoroSessions.filter(session => 
+        isSameDay(session.startTime, date)
+      );
+      
+      if (sessionsForDay.length > 0) {
+        const completedSessions = sessionsForDay.filter(s => s.completed).length;
+        return `${completedSessions}/${sessionsForDay.length} sessions`;
+      }
+    }
+    return null;
+  };
+
   const isTimeSlotUnavailable = (date: Date, hour: number): boolean => {
     const timeToCheck = new Date(date);
     timeToCheck.setHours(hour, 0, 0, 0);
@@ -191,10 +204,18 @@ const CalendarPage = () => {
       <SidebarInset className="p-3 lg:p-4 overflow-hidden">
         <div className="w-full max-w-7xl mx-auto">
           <div className="flex flex-col gap-3">
-            {/* Calendar Header */}
             <div className="flex justify-between items-center">
               <h1 className="text-xl lg:text-2xl font-bold font-heading text-primary">Calendar</h1>
               <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowAutoScheduleDialog(true)}
+                  className="flex items-center gap-1"
+                >
+                  <CalendarIcon className="h-4 w-4" />
+                  <span className="hidden md:inline">Auto-Schedule</span>
+                </Button>
                 <Button 
                   variant="outline" 
                   size="sm"
@@ -225,7 +246,6 @@ const CalendarPage = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3 h-[calc(100vh-120px)] overflow-hidden">
-              {/* Mini Calendar Component */}
               <Card className="md:col-span-1 overflow-auto">
                 <CardContent className="p-2">
                   <Calendar
@@ -237,7 +257,6 @@ const CalendarPage = () => {
                 </CardContent>
               </Card>
 
-              {/* Calendar Schedule View */}
               <div className="md:col-span-3 overflow-hidden">
                 <Card className="h-full">
                   <CardContent className="p-2 h-full overflow-hidden">
@@ -248,7 +267,6 @@ const CalendarPage = () => {
                         </h2>
                         
                         <div className="relative border rounded-md flex-1 overflow-auto">
-                          {/* Time indicators */}
                           <div className="absolute top-0 left-0 w-14 h-full border-r">
                             {timeBlocks.map((time) => (
                               <div 
@@ -260,9 +278,7 @@ const CalendarPage = () => {
                             ))}
                           </div>
                           
-                          {/* Tasks positioned by time */}
                           <div className="ml-14 relative">
-                            {/* Hour grid lines and unavailable time indicators */}
                             {timeBlocks.map((time, index) => {
                               const hour = index + 8;
                               const isUnavailable = isTimeSlotUnavailable(selectedDate, hour);
@@ -284,7 +300,6 @@ const CalendarPage = () => {
                               );
                             })}
                             
-                            {/* Current time indicator */}
                             {isToday(selectedDate) && (
                               <div 
                                 className="absolute w-full h-0.5 bg-red-500 z-10"
@@ -296,7 +311,6 @@ const CalendarPage = () => {
                               </div>
                             )}
                             
-                            {/* Tasks */}
                             {getTasksForDate(selectedDate).map(task => (
                               <div 
                                 key={task.id}
@@ -314,10 +328,17 @@ const CalendarPage = () => {
                                   </h3>
                                   
                                   <div className="flex items-center gap-1 text-xs mt-0.5">
-                                    <span className="flex items-center">
-                                      <Clock className="h-2.5 w-2.5 mr-0.5" />
-                                      {task.duration} min
-                                    </span>
+                                    {task.taskType === 'multi-day' && task.pomodoroSessions ? (
+                                      <span className="flex items-center">
+                                        <Clock className="h-2.5 w-2.5 mr-0.5" />
+                                        {getPomodoroSessionText(task, selectedDate) || `${task.duration} min`}
+                                      </span>
+                                    ) : (
+                                      <span className="flex items-center">
+                                        <Clock className="h-2.5 w-2.5 mr-0.5" />
+                                        {task.duration} min
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -332,7 +353,6 @@ const CalendarPage = () => {
                         </h2>
                         
                         <div className="grid grid-cols-7 border rounded-md flex-1 overflow-auto">
-                          {/* Day headers */}
                           <div className="contents">
                             {weekDays.map(day => (
                               <div 
@@ -353,7 +373,6 @@ const CalendarPage = () => {
                             ))}
                           </div>
                           
-                          {/* Week view content */}
                           {weekDays.map(day => (
                             <div 
                               key={day.dayName} 
@@ -362,7 +381,6 @@ const CalendarPage = () => {
                                 isToday(day.date) && "bg-primary/5"
                               )}
                             >
-                              {/* Show indicators for unavailable times */}
                               {unavailableTimes
                                 .filter(block => block.dayOfWeek === day.date.getDay())
                                 .map(block => (
@@ -383,23 +401,51 @@ const CalendarPage = () => {
                                   </div>
                                 ))}
                               
-                              {getTasksForDate(day.date).map(task => (
-                                <div 
-                                  key={task.id} 
-                                  className={`mb-1 p-1 rounded-md border-l-2 text-xs ${getUrgencyColor(task.urgency)} ${task.completed ? 'opacity-60' : ''}`}
-                                >
-                                  <div className={`font-medium truncate ${task.completed ? 'line-through' : ''}`}>
-                                    {task.name}
-                                  </div>
-                                  
-                                  {task.dueDate && (
+                              {tasks
+                                .filter(task => task.taskType === 'multi-day' && task.pomodoroSessions)
+                                .flatMap(task => {
+                                  if (!task.pomodoroSessions) return [];
+                                  return task.pomodoroSessions
+                                    .filter(session => isSameDay(session.startTime, day.date))
+                                    .map(session => ({ task, session }));
+                                })
+                                .sort((a, b) => a.session.startTime.getTime() - b.session.startTime.getTime())
+                                .map(({ task, session }) => (
+                                  <div 
+                                    key={session.id} 
+                                    className={`mb-1 p-1 rounded-md border-l-2 text-xs ${getUrgencyColor(task.urgency)} ${session.completed ? 'opacity-60' : ''}`}
+                                  >
+                                    <div className={`font-medium truncate ${session.completed ? 'line-through' : ''}`}>
+                                      {task.name}
+                                    </div>
                                     <div className="text-xs text-muted-foreground flex items-center">
                                       <Clock className="h-2.5 w-2.5 mr-0.5" />
-                                      {format(task.dueDate, 'h:mm a')}
+                                      {format(session.startTime, 'h:mm')} - {format(session.endTime, 'h:mm a')}
                                     </div>
-                                  )}
-                                </div>
-                              ))}
+                                  </div>
+                                ))}
+                              
+                              {getTasksForDate(day.date)
+                                .filter(task => 
+                                  !(task.taskType === 'multi-day' && task.pomodoroSessions?.some(s => isSameDay(s.startTime, day.date)))
+                                )
+                                .map(task => (
+                                  <div 
+                                    key={task.id} 
+                                    className={`mb-1 p-1 rounded-md border-l-2 text-xs ${getUrgencyColor(task.urgency)} ${task.completed ? 'opacity-60' : ''}`}
+                                  >
+                                    <div className={`font-medium truncate ${task.completed ? 'line-through' : ''}`}>
+                                      {task.name}
+                                    </div>
+                                    
+                                    {task.dueDate && (
+                                      <div className="text-xs text-muted-foreground flex items-center">
+                                        <Clock className="h-2.5 w-2.5 mr-0.5" />
+                                        {format(task.dueDate, 'h:mm a')}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
                             </div>
                           ))}
                         </div>
@@ -413,10 +459,13 @@ const CalendarPage = () => {
         </div>
       </SidebarInset>
       
-      {/* Unavailable Times Dialog */}
       <UnavailableTimesDialog 
         open={showUnavailableTimesDialog} 
         onOpenChange={setShowUnavailableTimesDialog} 
+      />
+      <AutoScheduleDialog 
+        open={showAutoScheduleDialog} 
+        onOpenChange={setShowAutoScheduleDialog} 
       />
     </div>
   );
