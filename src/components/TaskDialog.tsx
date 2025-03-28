@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,7 +15,7 @@ import { toast } from "@/hooks/use-toast";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, isBefore, isValid, parse } from "date-fns";
-import { CalendarIcon, Clock, HardHat, Info, Hourglass, Repeat } from "lucide-react";
+import { CalendarIcon, Clock, HardHat, Info, Hourglass, Repeat, Calendar as CalendarIcon2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useTasks, TaskType } from "@/contexts/TaskContext";
@@ -30,9 +29,10 @@ import { useForm } from "react-hook-form";
 type TaskDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onAutoSchedule?: () => void;
 };
 
-const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
+const TaskDialog = ({ open, onOpenChange, onAutoSchedule }: TaskDialogProps) => {
   const [taskName, setTaskName] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState<Date | undefined>(undefined);
@@ -388,6 +388,26 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
               </div>
             </div>
             
+            {taskType === 'multi-day' && onAutoSchedule && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <div className="col-start-2 col-span-3">
+                  <Button 
+                    type="button"
+                    variant="outline" 
+                    className="w-full flex justify-center items-center gap-2"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onAutoSchedule();
+                    }}
+                  >
+                    <CalendarIcon2 className="h-4 w-4" />
+                    Auto-Schedule Multiple Tasks
+                    <span className="text-xs text-muted-foreground">(Advanced options)</span>
+                  </Button>
+                </div>
+              </div>
+            )}
+            
             <div className="grid grid-cols-4 items-center gap-4">
               <div className="text-right flex items-center justify-end gap-1">
                 <Label htmlFor="due-date">Due Date</Label>
@@ -431,7 +451,7 @@ const TaskDialog = ({ open, onOpenChange }: TaskDialogProps) => {
                       <CalendarIcon className="h-4 w-4" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
+                  <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
                       mode="single"
                       selected={date}

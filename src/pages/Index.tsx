@@ -46,9 +46,6 @@ const Index = () => {
       case 'task':
         setDialogOpen(true);
         break;
-      case 'schedule':
-        setAutoScheduleOpen(true);
-        break;
     }
   };
   
@@ -102,9 +99,6 @@ const Index = () => {
                       <Button onClick={() => handleQuickAction('task')} className="flex justify-start">
                         <Plus className="mr-2 h-5 w-5" /> Add Task
                       </Button>
-                      <Button onClick={() => handleQuickAction('schedule')} className="flex justify-start">
-                        <Calendar className="mr-2 h-5 w-5" /> Auto-Schedule
-                      </Button>
                     </div>
                   </DrawerContent>
                 </Drawer>
@@ -124,9 +118,6 @@ const Index = () => {
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleQuickAction('task')}>
                       <Plus className="mr-2 h-4 w-4" /> Add Task
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleQuickAction('schedule')}>
-                      <Calendar className="mr-2 h-4 w-4" /> Auto-Schedule
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -159,15 +150,13 @@ const Index = () => {
           <div className="mb-8">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold">All Upcoming Tasks</h2>
-              
-              {/* Auto-schedule button moved here */}
               <Button 
-                variant="outline" 
+                variant="ghost" 
                 size="sm" 
                 className="flex items-center gap-1"
-                onClick={() => setAutoScheduleOpen(true)}
+                onClick={() => setDialogOpen(true)}
               >
-                <Calendar className="h-4 w-4" /> Schedule
+                <Plus className="h-4 w-4" /> Add
               </Button>
             </div>
             <PrioritizedTaskList 
@@ -201,7 +190,11 @@ const Index = () => {
       </SidebarInset>
 
       {/* Task Dialog */}
-      <TaskDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      <TaskDialog 
+        open={dialogOpen} 
+        onOpenChange={setDialogOpen} 
+        onAutoSchedule={() => setAutoScheduleOpen(true)}
+      />
       
       {/* Auto Schedule Dialog */}
       <AutoScheduleDialog open={autoScheduleOpen} onOpenChange={setAutoScheduleOpen} />
