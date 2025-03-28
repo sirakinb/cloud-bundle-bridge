@@ -1,4 +1,3 @@
-
 // Deepgram API integration for real-time speech-to-text
 
 // API key for Deepgram
@@ -272,9 +271,13 @@ export class DeepgramStream {
   }
 }
 
-// Utility function to save audio data
+// Utility function to save audio data - fixed to ensure proper MIME type and URL creation
 export const saveAudioBlob = (audioBlob: Blob): string => {
-  return URL.createObjectURL(audioBlob);
+  // Ensure we have the correct MIME type
+  const blob = new Blob([audioBlob], { type: 'audio/webm' });
+  const url = URL.createObjectURL(blob);
+  console.log("Created audio URL:", url);
+  return url;
 };
 
 // Get raw audio data from microphone and return as blob

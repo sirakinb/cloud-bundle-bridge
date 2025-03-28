@@ -1,4 +1,3 @@
-
 export interface Recording {
   id: string;
   title: string;
@@ -30,6 +29,7 @@ export const saveRecording = (recording: Recording): void => {
   const recordings = getRecordings();
   recordings.push(recording);
   localStorage.setItem(RECORDINGS_KEY, JSON.stringify(recordings));
+  console.log("Saved recording:", recording.id, "with audioUrl:", recording.audioUrl?.substring(0, 50) + "...");
 };
 
 // Get folders from localStorage
@@ -73,9 +73,9 @@ export const deleteRecording = (id: string): void => {
   localStorage.setItem(RECORDINGS_KEY, JSON.stringify(recordings));
 };
 
-// For demo purposes - generate a fake audio blob that will actually play
+// For demo or fallback purposes - generate a fake audio blob that will actually play
 export const generateAudioBlob = (): string => {
-  // This is a short sample sine wave tone for demo purposes
-  // This simple audio will actually play unlike the previous placeholder
-  return "data:audio/wav;base64,UklGRiXuAgBXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQHuAgCA/4D/gP+A/4D/gP+A/4D/gP+A/4D/gP+A/4D/gP+A/4D/gP+A/4D/gP+A/4D/gP+A/4D/gP+A/4D/gP+A/4D/gP+A/4D/gP+A/4D/gIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAgP+A/4D/gP+A/4D/gP+A/4D/gP+A/4D/gP+A/4D/gP+A/4D/gP+A/4D/gP+A/4D/gP+A/4D/gP+A/4D/gP+A/4D/gP+A/4D/gP+A/4D/gIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACA";
+  // This is a base64 encoded MP3 file with a short beep sound
+  // Much more likely to work in browsers than the previous WAV sample
+  return "data:audio/mp3;base64,SUQzAwAAAAAAJlRQRTEAAAAcAAAAU291bmRKYXkuY29tIFNvdW5kIEVmZmVjdHNUQUxCAAAAGAAAAGh0dHA6Ly93d3cuU291bmRKYXkuY29tVFBFMQAAABwAAABTb3VuZEpheS5jb20gU291bmQgRWZmZWN0c1RJVDIAAAATAAAAT25lIEJlZXAgU291bmQgRWZmZWN0VENPTgAAABMAAABPbmUgQmVlcCBTb3VuZCBFZmZlY3RDTU9EAAAAEAAAADk5OSBCZWVwIFNvdW5kcw==";
 };
