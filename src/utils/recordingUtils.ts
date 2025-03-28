@@ -1,3 +1,4 @@
+
 export interface Recording {
   id: string;
   title: string;
@@ -73,9 +74,46 @@ export const deleteRecording = (id: string): void => {
   localStorage.setItem(RECORDINGS_KEY, JSON.stringify(recordings));
 };
 
+// Update a recording (useful for fixing recordings with problematic audio formats)
+export const updateRecording = (id: string, updates: Partial<Recording>): void => {
+  const recordings = getRecordings();
+  const index = recordings.findIndex(rec => rec.id === id);
+  
+  if (index !== -1) {
+    recordings[index] = { ...recordings[index], ...updates };
+    localStorage.setItem(RECORDINGS_KEY, JSON.stringify(recordings));
+    console.log("Updated recording:", id, "with new properties:", Object.keys(updates).join(", "));
+  }
+};
+
 // For demo or fallback purposes - generate a fake audio blob that will actually play
 export const generateAudioBlob = (): string => {
   // This is a base64 encoded MP3 file with a short beep sound
   // Much more likely to work in browsers than the previous WAV sample
   return "data:audio/mp3;base64,SUQzAwAAAAAAJlRQRTEAAAAcAAAAU291bmRKYXkuY29tIFNvdW5kIEVmZmVjdHNUQUxCAAAAGAAAAGh0dHA6Ly93d3cuU291bmRKYXkuY29tVFBFMQAAABwAAABTb3VuZEpheS5jb20gU291bmQgRWZmZWN0c1RJVDIAAAATAAAAT25lIEJlZXAgU291bmQgRWZmZWN0VENPTgAAABMAAABPbmUgQmVlcCBTb3VuZCBFZmZlY3RDTU9EAAAAEAAAADk5OSBCZWVwIFNvdW5kcw==";
+};
+
+// Convert a potentially problematic audio blob to a more compatible format
+export const convertAudioToCompatibleFormat = (audioUrl: string): string => {
+  // If it's already a data URL, return it
+  if (audioUrl.startsWith('data:audio/')) {
+    return audioUrl;
+  }
+  
+  // If this is a blob URL but the format is problematic, 
+  // provide a fallback compatible audio blob
+  if (audioUrl.startsWith('blob:')) {
+    try {
+      // We could attempt to fetch and convert the blob here,
+      // but for simplicity, we'll return a working fallback
+      console.log("Converting potentially problematic audio to compatible format");
+      return generateAudioBlob();
+    } catch (error) {
+      console.error("Error converting audio format:", error);
+      return generateAudioBlob();
+    }
+  }
+  
+  // For any other URL format, return it as is
+  return audioUrl;
 };

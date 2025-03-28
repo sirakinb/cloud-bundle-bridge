@@ -2,9 +2,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Play, Pause, Volume2, VolumeX } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, RefreshCw } from "lucide-react";
 import { formatTime } from "@/utils/formatUtils";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
+import { convertAudioToCompatibleFormat, generateAudioBlob } from "@/utils/recordingUtils";
 
 interface AudioPlayerProps {
   audioUrl: string;
@@ -19,8 +20,14 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, title }) => 
   const [isMuted, setIsMuted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const audioRef = useRef<HTMLAudioElement>(null);
   const { toast } = useToast();
+
+  // Attempt to use a more compatible audio source if needed
+  const safeAudioUrl = retryCount > 0 
+    ? convertAudioToCompatibleFormat(audioUrl) 
+    : audioUrl;
 
   // Auto-play when a new recording is selected
   useEffect(() => {
@@ -33,7 +40,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, title }) => 
       
       // Load the new audio source
       audioRef.current.load();
-      console.log("Loading audio URL:", audioUrl);
+      console.log("Loading audio URL:", safeAudioUrl);
     }
     
     // Clean up function to revoke object URLs when component unmounts or URL changes
@@ -47,7 +54,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, title }) => 
         }
       }
     };
-  }, [audioUrl]);
+  }, [safeAudioUrl]);
 
   const togglePlay = () => {
     if (!audioRef.current || hasError) return;
@@ -141,23 +148,41 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, title }) => 
     setIsPlaying(false);
     setIsLoading(false);
     setHasError(true);
-    toast({
-      variant: "destructive",
-      title: "Playback Error",
-      description: "Could not play this recording. The format may be unsupported."
-    });
+    
+    // Only show toast on first error
+    if (retryCount === 0) {
+      toast({
+        variant: "destructive",
+        title: "Playback Error",
+        description: "Could not play this recording. The format may be unsupported."
+      });
+    }
   };
 
   const handleCanPlay = () => {
     setIsLoading(false);
     setHasError(false);
   };
+  
+  const handleRetry = () => {
+    setRetryCount(prev => prev + 1);
+    setHasError(false);
+    setIsLoading(true);
+    
+    // Small delay to ensure the audio element has time to update
+    setTimeout(() => {
+      if (audioRef.current) {
+        audioRef.current.load();
+        console.log("Retrying with fallback audio format");
+      }
+    }, 100);
+  };
 
   return (
     <div className="p-4 bg-accent/10 rounded-lg">
       <audio
         ref={audioRef}
-        src={audioUrl}
+        src={safeAudioUrl}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={handleEnded}
@@ -174,7 +199,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, title }) => 
           size="sm" 
           className="h-8 w-8 p-0" 
           onClick={togglePlay}
-          disabled={hasError}
+          disabled={hasError && retryCount > 0}
         >
           {isLoading ? (
             <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
@@ -195,7 +220,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, title }) => 
             step={0.1}
             onValueChange={handleSliderChange}
             className="flex-1"
-            disabled={hasError}
+            disabled={hasError && retryCount > 0}
           />
           <div className="text-xs text-foreground/70 w-12">
             {formatTime(Math.floor(duration))}
@@ -208,7 +233,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, title }) => 
             size="sm" 
             className="h-8 w-8 p-0" 
             onClick={toggleMute}
-            disabled={hasError}
+            disabled={hasError && retryCount > 0}
           >
             {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
           </Button>
@@ -218,14 +243,27 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, title }) => 
             step={0.01}
             onValueChange={handleVolumeChange}
             className="w-16"
-            disabled={hasError}
+            disabled={hasError && retryCount > 0}
           />
         </div>
       </div>
       
       {hasError && (
-        <div className="text-xs text-destructive mt-2 text-center">
-          Could not play this recording. The format may be unsupported.
+        <div className="text-xs text-destructive mt-2">
+          <div className="flex justify-between items-center">
+            <span>Could not play this recording. The format may be unsupported.</span>
+            {retryCount === 0 && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-6 text-xs flex items-center gap-1"
+                onClick={handleRetry}
+              >
+                <RefreshCw className="h-3 w-3" />
+                Try Fallback
+              </Button>
+            )}
+          </div>
         </div>
       )}
     </div>
