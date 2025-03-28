@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,10 +27,11 @@ import { useToast } from "@/components/ui/use-toast";
 import { toast as sonnerToast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { useTheme } from "@/contexts/ThemeContext";
-import { saveRecording, getRecordings, deleteRecording, Recording, getFolders, Folder as FolderType, generateAudioBlob } from "@/utils/recordingUtils";
+import { saveRecording, getRecordings, deleteRecording, Recording, getFolders, Folder as FolderType } from "@/utils/recordingUtils";
 import { FolderDialog } from "@/components/FolderDialog";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { formatTime } from "@/utils/formatUtils";
+import { DeepgramStream, saveAudioBlob } from "@/utils/deepgramUtils";
 import { 
   Accordion,
   AccordionContent,
@@ -41,17 +43,23 @@ const RecordPage = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [recordingInterval, setRecordingInterval] = useState<NodeJS.Timeout | null>(null);
   const [recordingTitle, setRecordingTitle] = useState("");
   const [recordingNotes, setRecordingNotes] = useState("");
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const [finalTranscript, setFinalTranscript] = useState("");
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [folders, setFolders] = useState<FolderType[]>([]);
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
-  const [selectedFolderId, setSelectedFolderId] = useState<string | null>("default");
   const [showRecordings, setShowRecordings] = useState(false);
   const [expandedFolders, setExpandedFolders] = useState<string[]>(['default']);
   const [selectedRecording, setSelectedRecording] = useState<Recording | null>(null);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const deepgramRef = useRef<DeepgramStream | null>(null);
+  const audioChunksRef = useRef<BlobPart[]>([]);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  
   const { toast } = useToast();
   const { colorScheme } = useTheme();
 
@@ -59,6 +67,54 @@ const RecordPage = () => {
     // Load recordings and folders when component mounts
     setRecordings(getRecordings());
     setFolders(getFolders());
+    
+    // Initialize Deepgram
+    deepgramRef.current = new DeepgramStream({
+      language: "en",
+      punctuate: true,
+      smart_format: true,
+      interim_results: true,
+      model: "nova-2"
+    });
+    
+    // Set up Deepgram event handlers
+    deepgramRef.current.onTranscript((text, isFinal) => {
+      if (isFinal) {
+        setFinalTranscript(prev => prev + " " + text);
+        // Update notes with transcript
+        setRecordingNotes(prev => {
+          if (prev.trim()) {
+            return prev + "\n" + text;
+          }
+          return text;
+        });
+      } else {
+        setLiveTranscript(text);
+      }
+    });
+    
+    deepgramRef.current.onError((error) => {
+      toast({
+        variant: "destructive",
+        title: "Recording Error",
+        description: error,
+      });
+    });
+    
+    // Cleanup on unmount
+    return () => {
+      if (deepgramRef.current?.isActive) {
+        deepgramRef.current.stop();
+      }
+      
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+      
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+    };
   }, []);
 
   // Group recordings by folder
@@ -90,7 +146,7 @@ const RecordPage = () => {
     setSelectedRecording(recording);
   };
 
-  const startRecording = () => {
+  const startRecording = async () => {
     if (!recordingTitle.trim()) {
       toast({
         variant: "destructive",
@@ -99,26 +155,78 @@ const RecordPage = () => {
       });
       return;
     }
-
-    setIsRecording(true);
-    setIsPaused(false);
     
-    const interval = setInterval(() => {
-      setRecordingTime(prev => prev + 1);
-    }, 1000);
-    
-    intervalRef.current = interval;
-    setRecordingInterval(interval);
-    
-    sonnerToast("Recording Started", {
-      description: "Your lecture recording has begun",
-    });
+    try {
+      // Reset transcript state
+      setLiveTranscript("");
+      setFinalTranscript("");
+      
+      // Initialize audio recording
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Set up MediaRecorder for capturing audio
+      const options = { mimeType: 'audio/webm' };
+      audioChunksRef.current = [];
+      
+      try {
+        mediaRecorderRef.current = new MediaRecorder(stream, options);
+      } catch (e) {
+        // Fallback if audio/webm is not supported
+        mediaRecorderRef.current = new MediaRecorder(stream);
+      }
+      
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+      
+      mediaRecorderRef.current.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        setAudioBlob(audioBlob);
+      };
+      
+      // Start recording
+      mediaRecorderRef.current.start();
+      
+      // Start Deepgram for transcription
+      await deepgramRef.current?.start();
+      
+      // Start timer
+      const interval = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+      
+      intervalRef.current = interval;
+      
+      // Update state
+      setIsRecording(true);
+      setIsPaused(false);
+      
+      sonnerToast("Recording Started", {
+        description: "Your lecture recording has begun",
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Recording Error",
+        description: `Could not start recording: ${error}`,
+      });
+    }
   };
   
   const pauseRecording = () => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
+    }
+    
+    // Pause Deepgram
+    deepgramRef.current?.pause();
+    
+    // Pause MediaRecorder
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.pause();
     }
     
     setIsPaused(true);
@@ -129,13 +237,22 @@ const RecordPage = () => {
   };
   
   const resumeRecording = () => {
-    setIsPaused(false);
+    // Resume Deepgram
+    deepgramRef.current?.resume();
     
+    // Resume MediaRecorder
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
+      mediaRecorderRef.current.resume();
+    }
+    
+    // Resume timer
     const interval = setInterval(() => {
       setRecordingTime(prev => prev + 1);
     }, 1000);
     
     intervalRef.current = interval;
+    
+    setIsPaused(false);
     
     sonnerToast("Recording Resumed", {
       description: "Your recording has been resumed",
@@ -143,20 +260,46 @@ const RecordPage = () => {
   };
   
   const stopRecording = () => {
+    // Stop timer
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
     
+    // Stop Deepgram
+    deepgramRef.current?.stop();
+    
+    // Stop MediaRecorder
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    
     setIsRecording(false);
     setIsPaused(false);
+    
+    // Add final transcript to notes if empty
+    if (!recordingNotes.trim() && finalTranscript.trim()) {
+      setRecordingNotes(finalTranscript.trim());
+    }
     
     // Open folder dialog to save recording
     setFolderDialogOpen(true);
   };
   
   const handleSaveRecording = (folderId: string) => {
-    // Create new recording object with dummy audio URL for demo
+    if (!audioBlob) {
+      toast({
+        variant: "destructive",
+        title: "Recording Error",
+        description: "No audio data to save",
+      });
+      return;
+    }
+    
+    // Create audio URL from blob
+    const audioUrl = saveAudioBlob(audioBlob);
+    
+    // Create new recording object
     const newRecording: Recording = {
       id: Date.now().toString(36),
       title: recordingTitle,
@@ -164,7 +307,7 @@ const RecordPage = () => {
       duration: recordingTime,
       date: new Date().toISOString(),
       folderId: folderId,
-      audioUrl: generateAudioBlob() // Add dummy audio data
+      audioUrl: audioUrl
     };
     
     // Save recording
@@ -179,20 +322,29 @@ const RecordPage = () => {
     });
   };
   
-  const restartRecording = () => {
+  const restartRecording = async () => {
+    // Stop current recording
+    if (deepgramRef.current?.isActive) {
+      deepgramRef.current.stop();
+    }
+    
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
     
+    // Reset state
     setRecordingTime(0);
+    setLiveTranscript("");
+    setFinalTranscript("");
+    audioChunksRef.current = [];
     
-    const interval = setInterval(() => {
-      setRecordingTime(prev => prev + 1);
-    }, 1000);
-    
-    intervalRef.current = interval;
-    setIsPaused(false);
+    // Start new recording
+    await startRecording();
     
     sonnerToast("Recording Restarted", {
       description: "Your recording has been restarted",
@@ -200,16 +352,30 @@ const RecordPage = () => {
   };
   
   const resetRecording = () => {
+    // Stop current recording if active
+    if (deepgramRef.current?.isActive) {
+      deepgramRef.current.stop();
+    }
+    
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
     
+    // Reset all state
     setIsRecording(false);
     setIsPaused(false);
     setRecordingTime(0);
     setRecordingTitle("");
     setRecordingNotes("");
+    setLiveTranscript("");
+    setFinalTranscript("");
+    audioChunksRef.current = [];
+    setAudioBlob(null);
     
     toast({
       title: "Recording Reset",
@@ -390,16 +556,17 @@ const RecordPage = () => {
                     </label>
                     <Textarea
                       id="recording-notes"
-                      placeholder="Add any notes about this recording (optional)"
+                      placeholder="Add any notes about this recording (will be automatically populated with transcript)"
                       value={recordingNotes}
                       onChange={(e) => setRecordingNotes(e.target.value)}
                       disabled={isRecording}
+                      className="min-h-[100px]"
                     />
                   </div>
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="mb-6">
                 <CardContent className="pt-6">
                   <div className="flex flex-col items-center">
                     {isRecording ? (
@@ -511,6 +678,31 @@ const RecordPage = () => {
                   )}
                 </CardContent>
               </Card>
+
+              {/* Real-time transcription display */}
+              {isRecording && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-foreground">Live Transcription</CardTitle>
+                    <CardDescription>
+                      Your lecture is being transcribed in real-time using Deepgram
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="bg-accent/10 p-4 rounded-md min-h-[100px] max-h-[300px] overflow-y-auto">
+                      {finalTranscript && (
+                        <p className="text-foreground mb-2">{finalTranscript}</p>
+                      )}
+                      {liveTranscript && (
+                        <p className="text-primary/70 italic">{liveTranscript}</p>
+                      )}
+                      {!finalTranscript && !liveTranscript && (
+                        <p className="text-muted-foreground">Waiting for speech...</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </>
           )}
         </div>
