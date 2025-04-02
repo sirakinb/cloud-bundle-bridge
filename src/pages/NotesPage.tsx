@@ -1,63 +1,38 @@
-import React, { useState } from "react";
+
+import React, { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { AppSidebar } from "@/components/AppSidebar";
-import { FileText, Mic, Star, Save, Edit, Check, X } from "lucide-react";
+import { FileText, Mic, Star, Save, Edit, Check, X, Volume2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { useTheme } from "@/contexts/ThemeContext";
-
-const mockNotes = [
-  {
-    id: "note-1",
-    title: "Biology Class Notes",
-    date: "2023-05-15",
-    timestamp: new Date("2023-05-15T10:30:00").getTime(),
-    recordingTitle: "Biology Lecture",
-    content: "Cell structure and function: Cells are the basic unit of life. They contain organelles that perform specific functions.",
-    favorite: true,
-  },
-  {
-    id: "note-2",
-    title: "Chemistry Study",
-    date: "2023-05-17",
-    timestamp: new Date("2023-05-17T14:15:00").getTime(),
-    recordingTitle: "Chemistry Lab Session",
-    content: "Chemical reactions: Exothermic reactions release energy, endothermic reactions absorb energy.",
-    favorite: false,
-  },
-  {
-    id: "note-3",
-    title: "Math Formulas",
-    date: "2023-05-20",
-    timestamp: new Date("2023-05-20T09:00:00").getTime(),
-    recordingTitle: "Calculus Lecture",
-    content: "Integration formulas and techniques. Applications of integration in volume calculation.",
-    favorite: true,
-  },
-  {
-    id: "note-4",
-    title: "Physics Laws",
-    date: "2023-05-22",
-    timestamp: new Date("2023-05-22T11:45:00").getTime(),
-    recordingTitle: "Physics Class",
-    content: "Newton's laws of motion: 1. An object at rest stays at rest, and an object in motion stays in motion unless acted upon by a force.",
-    favorite: false,
-  },
-];
+import { getNotes, saveNote, toggleNoteFavorite, Note, deleteNote } from "@/utils/recordingUtils";
+import { AudioPlayer } from "@/components/AudioPlayer";
 
 const NotesPage = () => {
-  const [notes, setNotes] = useState(mockNotes);
-  const [selectedNote, setSelectedNote] = useState(notes[0]);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [activeTab, setActiveTab] = useState("all");
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState("");
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const { toast } = useToast();
   const { colorScheme } = useTheme();
+
+  // Load notes when component mounts
+  useEffect(() => {
+    const loadedNotes = getNotes();
+    setNotes(loadedNotes);
+    
+    if (loadedNotes.length > 0) {
+      setSelectedNote(loadedNotes[0]);
+    }
+  }, []);
 
   const filteredNotes = () => {
     switch (activeTab) {
@@ -71,22 +46,23 @@ const NotesPage = () => {
   };
 
   const toggleFavorite = (noteId: string) => {
+    const isFavorite = toggleNoteFavorite(noteId);
+    
+    // Update our local state
     const updatedNotes = notes.map(note => 
-      note.id === noteId ? { ...note, favorite: !note.favorite } : note
+      note.id === noteId ? { ...note, favorite: isFavorite } : note
     );
     
     setNotes(updatedNotes);
     
-    if (selectedNote.id === noteId) {
-      const updatedSelectedNote = updatedNotes.find(note => note.id === noteId);
-      if (updatedSelectedNote) {
-        setSelectedNote(updatedSelectedNote);
-      }
+    if (selectedNote && selectedNote.id === noteId) {
+      setSelectedNote({...selectedNote, favorite: isFavorite});
     }
     
+    const action = isFavorite ? "added to" : "removed from";
     const currentNote = notes.find(note => note.id === noteId);
+    
     if (currentNote) {
-      const action = currentNote.favorite ? "removed from" : "added to";
       toast({
         title: `Note ${action} favorites`,
         description: `"${currentNote.title}" has been ${action} your favorites`,
@@ -95,17 +71,28 @@ const NotesPage = () => {
   };
 
   const handleEdit = () => {
+    if (!selectedNote) return;
     setEditedContent(selectedNote.content);
     setIsEditing(true);
   };
 
   const handleSave = () => {
+    if (!selectedNote) return;
+    
+    const updatedNote = {
+      ...selectedNote,
+      content: editedContent
+    };
+    
+    saveNote(updatedNote);
+    
+    // Update our local state
     const updatedNotes = notes.map(note => 
-      note.id === selectedNote.id ? { ...note, content: editedContent } : note
+      note.id === selectedNote.id ? updatedNote : note
     );
     
     setNotes(updatedNotes);
-    setSelectedNote({...selectedNote, content: editedContent});
+    setSelectedNote(updatedNote);
     setIsEditing(false);
     
     toast({
@@ -122,6 +109,33 @@ const NotesPage = () => {
       title: "Editing cancelled",
       description: "Your changes have been discarded",
       variant: "destructive",
+    });
+  };
+
+  const handleDeleteNote = (noteId: string) => {
+    deleteNote(noteId);
+    
+    // Update our local state
+    const updatedNotes = notes.filter(note => note.id !== noteId);
+    setNotes(updatedNotes);
+    
+    // If the deleted note was selected, select the first note
+    if (selectedNote && selectedNote.id === noteId) {
+      setSelectedNote(updatedNotes.length > 0 ? updatedNotes[0] : null);
+    }
+    
+    toast({
+      title: "Note deleted",
+      description: "The note has been permanently removed",
+    });
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString(undefined, { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
     });
   };
 
@@ -156,7 +170,7 @@ const NotesPage = () => {
                           <div
                             key={note.id}
                             className={`p-4 cursor-pointer border-l-4 ${
-                              selectedNote.id === note.id
+                              selectedNote?.id === note.id
                                 ? "border-primary bg-accent/20"
                                 : "border-transparent hover:bg-accent/10"
                             }`}
@@ -185,18 +199,34 @@ const NotesPage = () => {
                               </Button>
                             </div>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                              <span>{note.date}</span>
+                              <span>{formatDate(note.date)}</span>
                               <span>•</span>
                               <span className="flex items-center">
                                 <Mic className="h-3 w-3 mr-1" />
                                 {note.recordingTitle}
                               </span>
                             </div>
+                            {note.audioUrl && (
+                              <div className="mt-1 text-xs text-primary flex items-center">
+                                <Volume2 className="h-3 w-3 mr-1" />
+                                <span>Audio available</span>
+                              </div>
+                            )}
                           </div>
                         ))
                       ) : (
                         <div className="p-6 text-center text-muted-foreground">
-                          No notes found in this category
+                          <FileText className="h-12 w-12 mx-auto text-muted-foreground/50 mb-2" />
+                          <p>No notes found in this category</p>
+                          <p className="text-sm mt-2">Try recording a lecture first!</p>
+                          <Button 
+                            variant="outline" 
+                            className="mt-4"
+                            onClick={() => window.location.href = '/record'}
+                          >
+                            <Mic className="h-4 w-4 mr-2" />
+                            Record a Lecture
+                          </Button>
                         </div>
                       )}
                     </ScrollArea>
@@ -212,7 +242,7 @@ const NotesPage = () => {
                         <div>
                           <CardTitle>{selectedNote.title}</CardTitle>
                           <CardDescription className="flex items-center mt-1">
-                            <span>{selectedNote.date}</span>
+                            <span>{formatDate(selectedNote.date)}</span>
                             <span className="mx-2">•</span>
                             <span className="flex items-center">
                               <Mic className="h-3 w-3 mr-1" />
@@ -222,14 +252,24 @@ const NotesPage = () => {
                         </div>
                         <div className="flex items-center space-x-2">
                           {!isEditing ? (
-                            <Button 
-                              variant="outline" 
-                              size="icon"
-                              className="h-9 w-9 animate-fade-in"
-                              onClick={handleEdit}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
+                            <>
+                              <Button 
+                                variant="outline" 
+                                size="icon"
+                                className="h-9 w-9 animate-fade-in"
+                                onClick={handleEdit}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="outline" 
+                                size="icon"
+                                className="h-9 w-9 text-destructive animate-fade-in"
+                                onClick={() => handleDeleteNote(selectedNote.id)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </>
                           ) : (
                             <>
                               <Button 
@@ -270,6 +310,16 @@ const NotesPage = () => {
                       </div>
                     </CardHeader>
                     <Separator />
+                    
+                    {selectedNote.audioUrl && (
+                      <div className="px-6 pt-4">
+                        <AudioPlayer
+                          audioUrl={selectedNote.audioUrl}
+                          title={selectedNote.recordingTitle}
+                        />
+                      </div>
+                    )}
+                    
                     <CardContent className="pt-4">
                       <ScrollArea className="h-[50vh]">
                         <div className="prose prose-sm max-w-none dark:prose-invert">
@@ -289,7 +339,20 @@ const NotesPage = () => {
                   </Card>
                 ) : (
                   <Card className="flex items-center justify-center h-[60vh]">
-                    <p className="text-muted-foreground">Select a note to view its content</p>
+                    <div className="text-center p-6">
+                      <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                      <p className="text-lg text-muted-foreground">Select a note to view its content</p>
+                      {notes.length === 0 && (
+                        <Button 
+                          variant="outline" 
+                          className="mt-4"
+                          onClick={() => window.location.href = '/record'}
+                        >
+                          <Mic className="h-4 w-4 mr-2" />
+                          Record a Lecture
+                        </Button>
+                      )}
+                    </div>
                   </Card>
                 )}
               </div>
