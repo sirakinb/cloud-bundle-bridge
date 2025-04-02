@@ -1,3 +1,4 @@
+
 // Deepgram API integration for real-time speech-to-text
 
 // API key for Deepgram
@@ -97,13 +98,29 @@ export class DeepgramStream {
     }
     
     try {
+      // Get microphone access
       this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Connect to Deepgram first
       await this.connectToDeepgram();
-      this.setupMediaRecorder();
-      this.isRecording = true;
-      this.onStartCallback();
+      
+      // Set up media recorder only after connection is established
+      if (this.isConnected) {
+        this.setupMediaRecorder();
+        this.isRecording = true;
+        this.onStartCallback();
+      } else {
+        throw new Error("Failed to connect to Deepgram");
+      }
     } catch (error) {
+      console.error("DeepgramStream start error:", error);
       this.onErrorCallback(`Failed to start recording: ${error}`);
+      
+      // Clean up any resources
+      if (this.mediaStream) {
+        this.mediaStream.getTracks().forEach(track => track.stop());
+        this.mediaStream = null;
+      }
     }
   }
   
@@ -171,7 +188,12 @@ export class DeepgramStream {
     // Set authorization header
     this.socket.onopen = () => {
       if (this.socket) {
-        // Using the static header method for WebSockets
+        // Set the Authorization header with the API key
+        this.socket.send(JSON.stringify({
+          type: "Header",
+          Authorization: `Token ${DEEPGRAM_API_KEY}`
+        }));
+        
         this.socket.binaryType = 'arraybuffer';
         this.isConnected = true;
         console.log("Connected to Deepgram");
@@ -192,6 +214,7 @@ export class DeepgramStream {
     this.socket.onerror = (error) => {
       console.error("WebSocket error:", error);
       this.onErrorCallback(`WebSocket error: ${error}`);
+      this.isConnected = false;
     };
     
     // Handle closing
@@ -200,22 +223,31 @@ export class DeepgramStream {
       this.isConnected = false;
     };
     
-    // Wait for connection to be established
+    // Wait for connection to be established with a timeout
     await new Promise<void>((resolve, reject) => {
       if (!this.socket) {
         reject(new Error("Socket is null"));
         return;
       }
       
+      // Set a timeout for connection
+      const timeout = setTimeout(() => {
+        this.socket?.removeEventListener('open', onOpen);
+        this.socket?.removeEventListener('error', onError);
+        reject(new Error("WebSocket connection timed out after 5 seconds"));
+      }, 5000);
+      
       const onOpen = () => {
         this.socket?.removeEventListener('open', onOpen);
         this.socket?.removeEventListener('error', onError);
+        clearTimeout(timeout);
         resolve();
       };
       
       const onError = (err: Event) => {
         this.socket?.removeEventListener('open', onOpen);
         this.socket?.removeEventListener('error', onError);
+        clearTimeout(timeout);
         reject(new Error(`WebSocket connection failed: ${err}`));
       };
       
@@ -237,6 +269,7 @@ export class DeepgramStream {
       this.mediaRecorder = new MediaRecorder(this.mediaStream, options);
     } catch (error) {
       // Fallback if the browser doesn't support audio/webm
+      console.log("Falling back to default MediaRecorder format");
       this.mediaRecorder = new MediaRecorder(this.mediaStream);
     }
     

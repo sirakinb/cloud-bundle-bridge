@@ -117,3 +117,31 @@ export const convertAudioToCompatibleFormat = (audioUrl: string): string => {
   // For any other URL format, return it as is
   return audioUrl;
 };
+
+// Function to safely establish a media stream
+export const getMediaStream = async (): Promise<MediaStream> => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    return stream;
+  } catch (error) {
+    console.error("Error accessing microphone:", error);
+    throw new Error(`Microphone access denied: ${error}`);
+  }
+};
+
+// Function to safely create a MediaRecorder
+export const createMediaRecorder = (stream: MediaStream, onDataAvailable: (event: BlobEvent) => void): MediaRecorder => {
+  let mediaRecorder: MediaRecorder;
+  
+  // Try with audio/webm first (most compatible)
+  try {
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+  } catch (e) {
+    // Fall back to default
+    console.log("audio/webm not supported, falling back to default");
+    mediaRecorder = new MediaRecorder(stream);
+  }
+  
+  mediaRecorder.ondataavailable = onDataAvailable;
+  return mediaRecorder;
+};
