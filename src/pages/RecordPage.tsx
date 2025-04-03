@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +22,7 @@ import {
   ChevronDown,
   Volume2
 } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -49,6 +48,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Toaster } from "@/components/ui/toaster";
 
 const RecordPage = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -120,12 +120,11 @@ const RecordPage = () => {
 
   const startRecording = async () => {
     if (!recordingTitle.trim()) {
-      // Show a toast notification that auto-dismisses after 2 seconds
       toast({
         variant: "destructive",
         title: "Please provide a title",
         description: "Recording title is required",
-        duration: 2000, // 2 seconds duration
+        duration: 2000,
       });
       return;
     }
@@ -133,7 +132,6 @@ const RecordPage = () => {
     try {
       console.log("Starting recording process...");
       
-      // Reset any previous recording state
       setAudioBlob(null);
       audioChunksRef.current = [];
       setIsFallbackMode(false);
@@ -147,16 +145,12 @@ const RecordPage = () => {
       } catch (micError) {
         console.warn("Failed to get microphone, using fallback mode:", micError);
         setIsFallbackMode(true);
-        // We'll continue without a real stream - recording will use fallback audio
-        
-        // Show a toast notification but don't stop the recording process
         toast({
           title: "Microphone not available",
           description: "Using fallback mode - recording will still work without microphone access.",
         });
       }
       
-      // Only set up the media recorder if we actually have a stream
       if (!isFallbackMode && stream) {
         try {
           mediaRecorderRef.current = createMediaRecorder(stream, (event) => {
@@ -184,7 +178,6 @@ const RecordPage = () => {
         }
       }
       
-      // Start the timer regardless of whether we have a real recorder
       const interval = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
@@ -291,18 +284,15 @@ const RecordPage = () => {
         mediaRecorderRef.current.stop();
       } catch (e) {
         console.warn("Error stopping recorder:", e);
-        // If the media recorder fails, use a fallback blob
         setAudioBlob(createFallbackAudioBlob());
       }
     } else if (isFallbackMode || !audioBlob) {
-      // If we're in fallback mode or have no audio blob yet, create one
       setAudioBlob(createFallbackAudioBlob());
     }
     
     setIsRecording(false);
     setIsPaused(false);
     
-    // Ensure we have a valid audio blob before showing the folder dialog
     setTimeout(() => {
       if (!audioBlob) {
         setAudioBlob(createFallbackAudioBlob());
@@ -314,7 +304,6 @@ const RecordPage = () => {
   const handleSaveRecording = (folderId: string) => {
     const finalAudioBlob = audioBlob || createFallbackAudioBlob();
     
-    // Convert the blob to a data URL
     const reader = new FileReader();
     reader.onloadend = () => {
       const audioUrl = reader.result as string;
@@ -338,7 +327,6 @@ const RecordPage = () => {
         description: `Your recording "${recordingTitle}" has been saved.`,
       });
       
-      // Reset recording state
       resetRecording();
     };
     
@@ -718,6 +706,8 @@ const RecordPage = () => {
           }, 500);
         }}
       />
+      
+      <Toaster />
     </div>
   );
 };
