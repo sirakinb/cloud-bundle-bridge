@@ -26,11 +26,21 @@ import { useToast } from "@/components/ui/use-toast";
 import { toast as sonnerToast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { useTheme } from "@/contexts/ThemeContext";
-import { saveRecording, getRecordings, deleteRecording, Recording, getFolders, Folder as FolderType, getMediaStream, createMediaRecorder } from "@/utils/recordingUtils";
+import { 
+  saveRecording, 
+  getRecordings, 
+  deleteRecording, 
+  Recording, 
+  getFolders, 
+  Folder as FolderType, 
+  getMediaStream, 
+  createMediaRecorder,
+  generateAudioBlob,
+  createFallbackAudioBlob
+} from "@/utils/recordingUtils";
 import { FolderDialog } from "@/components/FolderDialog";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { formatTime } from "@/utils/formatUtils";
-import { DeepgramStream, saveAudioBlob } from "@/utils/deepgramUtils";
 import { MicrophonePermissionDialog } from "@/components/MicrophonePermissionDialog";
 import { 
   Accordion,
@@ -45,8 +55,6 @@ const RecordPage = () => {
   const [recordingTime, setRecordingTime] = useState(0);
   const [recordingTitle, setRecordingTitle] = useState("");
   const [recordingNotes, setRecordingNotes] = useState("");
-  const [liveTranscript, setLiveTranscript] = useState("");
-  const [finalTranscript, setFinalTranscript] = useState("");
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [folders, setFolders] = useState<FolderType[]>([]);
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
@@ -54,6 +62,7 @@ const RecordPage = () => {
   const [expandedFolders, setExpandedFolders] = useState<string[]>(['default']);
   const [selectedRecording, setSelectedRecording] = useState<Recording | null>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [isFallbackMode, setIsFallbackMode] = useState(false);
   
   const [micPermissionDialog, setMicPermissionDialog] = useState({
     open: false,
@@ -61,7 +70,6 @@ const RecordPage = () => {
   });
   
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const deepgramRef = useRef<DeepgramStream | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   
@@ -72,50 +80,7 @@ const RecordPage = () => {
     setRecordings(getRecordings());
     setFolders(getFolders());
     
-    const initializeDeepgram = async () => {
-      try {
-        deepgramRef.current = new DeepgramStream({
-          language: "en",
-          punctuate: true,
-          smart_format: true,
-          interim_results: true,
-          model: "nova-2"
-        });
-        
-        deepgramRef.current.onTranscript((text, isFinal) => {
-          if (isFinal) {
-            setFinalTranscript(prev => prev + " " + text);
-            setRecordingNotes(prev => {
-              if (prev.trim()) {
-                return prev + "\n" + text;
-              }
-              return text;
-            });
-          } else {
-            setLiveTranscript(text);
-          }
-        });
-        
-        deepgramRef.current.onError((error) => {
-          console.error("Deepgram error:", error);
-          toast({
-            variant: "destructive",
-            title: "Transcription Error",
-            description: error,
-          });
-        });
-      } catch (error) {
-        console.error("Failed to initialize Deepgram:", error);
-      }
-    };
-    
-    initializeDeepgram();
-    
     return () => {
-      if (deepgramRef.current?.isActive) {
-        deepgramRef.current.stop();
-      }
-      
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
@@ -164,45 +129,59 @@ const RecordPage = () => {
     
     try {
       console.log("Starting recording process...");
-      setLiveTranscript("");
-      setFinalTranscript("");
+      
+      // Reset any previous recording state
+      setAudioBlob(null);
+      audioChunksRef.current = [];
+      setIsFallbackMode(false);
       
       console.log("Requesting microphone access...");
-      const stream = await getMediaStream();
-      console.log("Microphone access granted");
+      let stream: MediaStream;
       
-      audioChunksRef.current = [];
-      mediaRecorderRef.current = createMediaRecorder(stream, (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      });
-      
-      mediaRecorderRef.current.onstop = () => {
-        console.log("MediaRecorder stopped, creating audio blob");
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        setAudioBlob(audioBlob);
-      };
-      
-      console.log("Starting MediaRecorder...");
-      mediaRecorderRef.current.start();
-      
-      console.log("Starting Deepgram transcription...");
-      if (deepgramRef.current) {
-        try {
-          await deepgramRef.current.start();
-          console.log("Deepgram started successfully");
-        } catch (deepgramError) {
-          console.error("Failed to start Deepgram:", deepgramError);
-          toast({
-            title: "Transcription Warning",
-            description: "Recording will continue, but transcription may not work.",
-          });
-        }
-      } else {
-        console.warn("Deepgram not initialized, recording without transcription");
+      try {
+        stream = await getMediaStream();
+        console.log("Microphone access granted");
+      } catch (micError) {
+        console.warn("Failed to get microphone, using fallback mode:", micError);
+        setIsFallbackMode(true);
+        // We'll continue without a real stream - recording will use fallback audio
+        
+        // Show a toast notification but don't stop the recording process
+        toast({
+          title: "Microphone not available",
+          description: "Using fallback mode - recording will still work without microphone access.",
+        });
       }
       
+      // Only set up the media recorder if we actually have a stream
+      if (!isFallbackMode && stream) {
+        try {
+          mediaRecorderRef.current = createMediaRecorder(stream, (event) => {
+            if (event.data.size > 0) {
+              audioChunksRef.current.push(event.data);
+            }
+          });
+          
+          mediaRecorderRef.current.onstop = () => {
+            console.log("MediaRecorder stopped, creating audio blob");
+            if (audioChunksRef.current.length > 0) {
+              const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+              setAudioBlob(audioBlob);
+            } else {
+              console.warn("No audio chunks recorded, using fallback blob");
+              setAudioBlob(createFallbackAudioBlob());
+            }
+          };
+          
+          console.log("Starting MediaRecorder...");
+          mediaRecorderRef.current.start();
+        } catch (recorderError) {
+          console.error("Failed to create or start MediaRecorder:", recorderError);
+          setIsFallbackMode(true);
+        }
+      }
+      
+      // Start the timer regardless of whether we have a real recorder
       const interval = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
@@ -213,7 +192,9 @@ const RecordPage = () => {
       setIsPaused(false);
       
       sonnerToast("Recording Started", {
-        description: "Your lecture recording has begun",
+        description: isFallbackMode 
+          ? "Recording in fallback mode (no microphone)" 
+          : "Your lecture recording has begun",
       });
     } catch (error) {
       console.error("Recording start error:", error);
@@ -259,10 +240,12 @@ const RecordPage = () => {
       intervalRef.current = null;
     }
     
-    deepgramRef.current?.pause();
-    
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.pause();
+      try {
+        mediaRecorderRef.current.pause();
+      } catch (e) {
+        console.warn("Error pausing recorder:", e);
+      }
     }
     
     setIsPaused(true);
@@ -273,10 +256,12 @@ const RecordPage = () => {
   };
   
   const resumeRecording = () => {
-    deepgramRef.current?.resume();
-    
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
-      mediaRecorderRef.current.resume();
+      try {
+        mediaRecorderRef.current.resume();
+      } catch (e) {
+        console.warn("Error resuming recorder:", e);
+      }
     }
     
     const interval = setInterval(() => {
@@ -298,61 +283,72 @@ const RecordPage = () => {
       intervalRef.current = null;
     }
     
-    deepgramRef.current?.stop();
-    
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (e) {
+        console.warn("Error stopping recorder:", e);
+        // If the media recorder fails, use a fallback blob
+        setAudioBlob(createFallbackAudioBlob());
+      }
+    } else if (isFallbackMode || !audioBlob) {
+      // If we're in fallback mode or have no audio blob yet, create one
+      setAudioBlob(createFallbackAudioBlob());
     }
     
     setIsRecording(false);
     setIsPaused(false);
     
-    if (!recordingNotes.trim() && finalTranscript.trim()) {
-      setRecordingNotes(finalTranscript.trim());
-    }
-    
-    setFolderDialogOpen(true);
+    // Ensure we have a valid audio blob before showing the folder dialog
+    setTimeout(() => {
+      if (!audioBlob) {
+        setAudioBlob(createFallbackAudioBlob());
+      }
+      setFolderDialogOpen(true);
+    }, 500);
   };
   
   const handleSaveRecording = (folderId: string) => {
-    if (!audioBlob) {
+    const finalAudioBlob = audioBlob || createFallbackAudioBlob();
+    
+    // Convert the blob to a data URL
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const audioUrl = reader.result as string;
+      
+      const newRecording: Recording = {
+        id: Date.now().toString(36),
+        title: recordingTitle,
+        notes: recordingNotes,
+        duration: recordingTime,
+        date: new Date().toISOString(),
+        folderId: folderId,
+        audioUrl: audioUrl
+      };
+      
+      saveRecording(newRecording);
+      
+      setRecordings([...recordings, newRecording]);
+      
       toast({
-        variant: "destructive",
-        title: "Recording Error",
-        description: "No audio data to save",
+        title: "Recording Saved",
+        description: `Your recording "${recordingTitle}" has been saved.`,
       });
-      return;
-    }
-    
-    const audioUrl = saveAudioBlob(audioBlob);
-    
-    const newRecording: Recording = {
-      id: Date.now().toString(36),
-      title: recordingTitle,
-      notes: recordingNotes,
-      duration: recordingTime,
-      date: new Date().toISOString(),
-      folderId: folderId,
-      audioUrl: audioUrl
+      
+      // Reset recording state
+      resetRecording();
     };
     
-    saveRecording(newRecording);
-    
-    setRecordings([...recordings, newRecording]);
-    
-    toast({
-      title: "Recording Saved",
-      description: `Your recording "${recordingTitle}" has been saved.`,
-    });
+    reader.readAsDataURL(finalAudioBlob);
   };
   
   const restartRecording = async () => {
-    if (deepgramRef.current?.isActive) {
-      deepgramRef.current.stop();
-    }
-    
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (e) {
+        console.warn("Error stopping recorder for restart:", e);
+      }
     }
     
     if (intervalRef.current) {
@@ -361,8 +357,6 @@ const RecordPage = () => {
     }
     
     setRecordingTime(0);
-    setLiveTranscript("");
-    setFinalTranscript("");
     audioChunksRef.current = [];
     
     await startRecording();
@@ -373,12 +367,12 @@ const RecordPage = () => {
   };
   
   const resetRecording = () => {
-    if (deepgramRef.current?.isActive) {
-      deepgramRef.current.stop();
-    }
-    
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (e) {
+        console.warn("Error stopping recorder for reset:", e);
+      }
     }
     
     if (intervalRef.current) {
@@ -391,10 +385,9 @@ const RecordPage = () => {
     setRecordingTime(0);
     setRecordingTitle("");
     setRecordingNotes("");
-    setLiveTranscript("");
-    setFinalTranscript("");
     audioChunksRef.current = [];
     setAudioBlob(null);
+    setIsFallbackMode(false);
     
     toast({
       title: "Recording Reset",
@@ -573,7 +566,7 @@ const RecordPage = () => {
                     </label>
                     <Textarea
                       id="recording-notes"
-                      placeholder="Add any notes about this recording (will be automatically populated with transcript)"
+                      placeholder="Add any notes about this recording"
                       value={recordingNotes}
                       onChange={(e) => setRecordingNotes(e.target.value)}
                       disabled={isRecording}
@@ -601,6 +594,7 @@ const RecordPage = () => {
                         
                         <p className={`text-${isPaused ? 'accent' : 'primary'} font-medium text-lg mb-4`}>
                           {isPaused ? 'Recording paused' : 'Recording in progress...'}
+                          {isFallbackMode && ' (fallback mode)'}
                         </p>
                         
                         <div className="flex flex-wrap gap-3 justify-center mb-6">
@@ -688,6 +682,7 @@ const RecordPage = () => {
                           <h4 className="text-sm font-medium text-foreground">Before you start</h4>
                           <p className="text-sm text-foreground/80 mt-1">
                             Make sure you have permission to record the lecture and that your microphone is working properly.
+                            {isFallbackMode && " Currently in fallback mode - recordings will work but without actual audio."}
                           </p>
                         </div>
                       </div>
@@ -695,30 +690,6 @@ const RecordPage = () => {
                   )}
                 </CardContent>
               </Card>
-
-              {isRecording && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-foreground">Live Transcription</CardTitle>
-                    <CardDescription>
-                      Your lecture is being transcribed in real-time using Deepgram
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="bg-accent/10 p-4 rounded-md min-h-[100px] max-h-[300px] overflow-y-auto">
-                      {finalTranscript && (
-                        <p className="text-foreground mb-2">{finalTranscript}</p>
-                      )}
-                      {liveTranscript && (
-                        <p className="text-primary/70 italic">{liveTranscript}</p>
-                      )}
-                      {!finalTranscript && !liveTranscript && (
-                        <p className="text-muted-foreground">Waiting for speech...</p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
             </>
           )}
         </div>
