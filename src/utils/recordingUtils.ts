@@ -124,7 +124,19 @@ export const getMediaStream = async (): Promise<MediaStream> => {
     return stream;
   } catch (error) {
     console.error("Error accessing microphone:", error);
-    throw new Error(`Microphone access denied: ${error}`);
+    
+    // Check for permission denied errors
+    if (error instanceof DOMException) {
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        throw new Error('microphone-permission-denied');
+      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        throw new Error('microphone-not-found');
+      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+        throw new Error('microphone-in-use');
+      }
+    }
+    
+    throw new Error(`Microphone access error: ${error}`);
   }
 };
 

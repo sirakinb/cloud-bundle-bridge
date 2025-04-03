@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,11 +26,12 @@ import { useToast } from "@/components/ui/use-toast";
 import { toast as sonnerToast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { useTheme } from "@/contexts/ThemeContext";
-import { saveRecording, getRecordings, deleteRecording, Recording, getFolders, Folder as FolderType } from "@/utils/recordingUtils";
+import { saveRecording, getRecordings, deleteRecording, Recording, getFolders, Folder as FolderType, getMediaStream, createMediaRecorder } from "@/utils/recordingUtils";
 import { FolderDialog } from "@/components/FolderDialog";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { formatTime } from "@/utils/formatUtils";
 import { DeepgramStream, saveAudioBlob } from "@/utils/deepgramUtils";
+import { MicrophonePermissionDialog } from "@/components/MicrophonePermissionDialog";
 import { 
   Accordion,
   AccordionContent,
@@ -55,6 +55,11 @@ const RecordPage = () => {
   const [selectedRecording, setSelectedRecording] = useState<Recording | null>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   
+  const [micPermissionDialog, setMicPermissionDialog] = useState({
+    open: false,
+    errorType: "other" as "permission-denied" | "not-found" | "in-use" | "other"
+  });
+  
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const deepgramRef = useRef<DeepgramStream | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
@@ -64,11 +69,9 @@ const RecordPage = () => {
   const { colorScheme } = useTheme();
 
   useEffect(() => {
-    // Load recordings and folders when component mounts
     setRecordings(getRecordings());
     setFolders(getFolders());
     
-    // Initialize Deepgram
     deepgramRef.current = new DeepgramStream({
       language: "en",
       punctuate: true,
@@ -77,11 +80,9 @@ const RecordPage = () => {
       model: "nova-2"
     });
     
-    // Set up Deepgram event handlers
     deepgramRef.current.onTranscript((text, isFinal) => {
       if (isFinal) {
         setFinalTranscript(prev => prev + " " + text);
-        // Update notes with transcript
         setRecordingNotes(prev => {
           if (prev.trim()) {
             return prev + "\n" + text;
@@ -101,7 +102,6 @@ const RecordPage = () => {
       });
     });
     
-    // Cleanup on unmount
     return () => {
       if (deepgramRef.current?.isActive) {
         deepgramRef.current.stop();
@@ -117,7 +117,6 @@ const RecordPage = () => {
     };
   }, []);
 
-  // Group recordings by folder
   const recordingsByFolder = recordings.reduce((acc, recording) => {
     const folderId = recording.folderId || 'default';
     if (!acc[folderId]) {
@@ -127,13 +126,11 @@ const RecordPage = () => {
     return acc;
   }, {} as Record<string, Recording[]>);
 
-  // Get folder name by ID
   const getFolderName = (folderId: string): string => {
     const folder = folders.find(f => f.id === folderId);
     return folder ? folder.name : 'Default';
   };
 
-  // Function to toggle expanded state of a folder
   const toggleFolderExpanded = (folderId: string) => {
     setExpandedFolders(prev => 
       prev.includes(folderId) 
@@ -157,49 +154,33 @@ const RecordPage = () => {
     }
     
     try {
-      // Reset transcript state
       setLiveTranscript("");
       setFinalTranscript("");
       
-      // Initialize audio recording
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await getMediaStream();
       
-      // Set up MediaRecorder for capturing audio
-      const options = { mimeType: 'audio/webm' };
       audioChunksRef.current = [];
-      
-      try {
-        mediaRecorderRef.current = new MediaRecorder(stream, options);
-      } catch (e) {
-        // Fallback if audio/webm is not supported
-        mediaRecorderRef.current = new MediaRecorder(stream);
-      }
-      
-      mediaRecorderRef.current.ondataavailable = (event) => {
+      mediaRecorderRef.current = createMediaRecorder(stream, (event) => {
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
-      };
+      });
       
       mediaRecorderRef.current.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         setAudioBlob(audioBlob);
       };
       
-      // Start recording
       mediaRecorderRef.current.start();
       
-      // Start Deepgram for transcription
       await deepgramRef.current?.start();
       
-      // Start timer
       const interval = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
       
       intervalRef.current = interval;
       
-      // Update state
       setIsRecording(true);
       setIsPaused(false);
       
@@ -207,11 +188,35 @@ const RecordPage = () => {
         description: "Your lecture recording has begun",
       });
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Recording Error",
-        description: `Could not start recording: ${error}`,
-      });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      if (errorMessage.includes('microphone-permission-denied')) {
+        setMicPermissionDialog({
+          open: true,
+          errorType: "permission-denied"
+        });
+      } else if (errorMessage.includes('microphone-not-found')) {
+        setMicPermissionDialog({
+          open: true,
+          errorType: "not-found"
+        });
+      } else if (errorMessage.includes('microphone-in-use')) {
+        setMicPermissionDialog({
+          open: true,
+          errorType: "in-use"
+        });
+      } else {
+        setMicPermissionDialog({
+          open: true,
+          errorType: "other"
+        });
+        
+        toast({
+          variant: "destructive",
+          title: "Recording Error",
+          description: `Could not start recording: ${errorMessage}`,
+        });
+      }
     }
   };
   
@@ -221,10 +226,8 @@ const RecordPage = () => {
       intervalRef.current = null;
     }
     
-    // Pause Deepgram
     deepgramRef.current?.pause();
     
-    // Pause MediaRecorder
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.pause();
     }
@@ -237,15 +240,12 @@ const RecordPage = () => {
   };
   
   const resumeRecording = () => {
-    // Resume Deepgram
     deepgramRef.current?.resume();
     
-    // Resume MediaRecorder
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
       mediaRecorderRef.current.resume();
     }
     
-    // Resume timer
     const interval = setInterval(() => {
       setRecordingTime(prev => prev + 1);
     }, 1000);
@@ -260,16 +260,13 @@ const RecordPage = () => {
   };
   
   const stopRecording = () => {
-    // Stop timer
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
     
-    // Stop Deepgram
     deepgramRef.current?.stop();
     
-    // Stop MediaRecorder
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
@@ -277,12 +274,10 @@ const RecordPage = () => {
     setIsRecording(false);
     setIsPaused(false);
     
-    // Add final transcript to notes if empty
     if (!recordingNotes.trim() && finalTranscript.trim()) {
       setRecordingNotes(finalTranscript.trim());
     }
     
-    // Open folder dialog to save recording
     setFolderDialogOpen(true);
   };
   
@@ -296,10 +291,8 @@ const RecordPage = () => {
       return;
     }
     
-    // Create audio URL from blob
     const audioUrl = saveAudioBlob(audioBlob);
     
-    // Create new recording object
     const newRecording: Recording = {
       id: Date.now().toString(36),
       title: recordingTitle,
@@ -310,10 +303,8 @@ const RecordPage = () => {
       audioUrl: audioUrl
     };
     
-    // Save recording
     saveRecording(newRecording);
     
-    // Update local state
     setRecordings([...recordings, newRecording]);
     
     toast({
@@ -323,7 +314,6 @@ const RecordPage = () => {
   };
   
   const restartRecording = async () => {
-    // Stop current recording
     if (deepgramRef.current?.isActive) {
       deepgramRef.current.stop();
     }
@@ -337,13 +327,11 @@ const RecordPage = () => {
       intervalRef.current = null;
     }
     
-    // Reset state
     setRecordingTime(0);
     setLiveTranscript("");
     setFinalTranscript("");
     audioChunksRef.current = [];
     
-    // Start new recording
     await startRecording();
     
     sonnerToast("Recording Restarted", {
@@ -352,7 +340,6 @@ const RecordPage = () => {
   };
   
   const resetRecording = () => {
-    // Stop current recording if active
     if (deepgramRef.current?.isActive) {
       deepgramRef.current.stop();
     }
@@ -366,7 +353,6 @@ const RecordPage = () => {
       intervalRef.current = null;
     }
     
-    // Reset all state
     setIsRecording(false);
     setIsPaused(false);
     setRecordingTime(0);
@@ -384,7 +370,6 @@ const RecordPage = () => {
   };
   
   const handleDeleteRecording = (id: string) => {
-    // If the deleted recording is currently selected, clear the selection
     if (selectedRecording && selectedRecording.id === id) {
       setSelectedRecording(null);
     }
@@ -448,7 +433,6 @@ const RecordPage = () => {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {/* Audio player for selected recording */}
                     {selectedRecording && selectedRecording.audioUrl && (
                       <div className="mb-6">
                         <AudioPlayer 
@@ -679,7 +663,6 @@ const RecordPage = () => {
                 </CardContent>
               </Card>
 
-              {/* Real-time transcription display */}
               {isRecording && (
                 <Card>
                   <CardHeader>
@@ -715,6 +698,18 @@ const RecordPage = () => {
           handleSaveRecording(folderId);
           setFolderDialogOpen(false);
         }} 
+      />
+      
+      <MicrophonePermissionDialog
+        open={micPermissionDialog.open}
+        onOpenChange={(open) => setMicPermissionDialog(prev => ({ ...prev, open }))}
+        errorType={micPermissionDialog.errorType}
+        onRetry={() => {
+          setMicPermissionDialog(prev => ({ ...prev, open: false }));
+          setTimeout(() => {
+            startRecording();
+          }, 500);
+        }}
       />
     </div>
   );
