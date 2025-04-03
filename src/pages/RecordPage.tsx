@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -119,10 +120,12 @@ const RecordPage = () => {
 
   const startRecording = async () => {
     if (!recordingTitle.trim()) {
+      // Show a toast notification that auto-dismisses after 2 seconds
       toast({
         variant: "destructive",
-        title: "Missing Information",
-        description: "Please provide a title for your recording",
+        title: "Please provide a title",
+        description: "Recording title is required",
+        duration: 2000, // 2 seconds duration
       });
       return;
     }
