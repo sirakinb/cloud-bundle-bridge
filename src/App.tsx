@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { TaskProvider } from "./contexts/TaskContext";
 import { UnavailableTimesProvider } from "./contexts/UnavailableTimesContext";
-import { Toaster } from "./components/ui/sonner";
+import { Toaster as SonnerToaster } from "sonner";
 import { SidebarProvider } from "./components/ui/sidebar";
 
 import IndexPage from "./pages/Index";
@@ -25,7 +25,7 @@ function App() {
         <SidebarProvider>
           <UnavailableTimesProvider>
             <TaskProvider>
-              <Toaster />
+              <SonnerToaster />
               <Routes>
                 <Route path="/" element={<IndexPage />} />
                 <Route path="/notes" element={<NotesPage />} />

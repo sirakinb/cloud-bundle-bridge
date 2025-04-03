@@ -48,7 +48,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Toaster } from "@/components/ui/toaster";
 
 const RecordPage = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -706,8 +705,6 @@ const RecordPage = () => {
           }, 500);
         }}
       />
-      
-      <Toaster />
     </div>
   );
 };
