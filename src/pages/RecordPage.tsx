@@ -72,35 +72,44 @@ const RecordPage = () => {
     setRecordings(getRecordings());
     setFolders(getFolders());
     
-    deepgramRef.current = new DeepgramStream({
-      language: "en",
-      punctuate: true,
-      smart_format: true,
-      interim_results: true,
-      model: "nova-2"
-    });
-    
-    deepgramRef.current.onTranscript((text, isFinal) => {
-      if (isFinal) {
-        setFinalTranscript(prev => prev + " " + text);
-        setRecordingNotes(prev => {
-          if (prev.trim()) {
-            return prev + "\n" + text;
-          }
-          return text;
+    const initializeDeepgram = async () => {
+      try {
+        deepgramRef.current = new DeepgramStream({
+          language: "en",
+          punctuate: true,
+          smart_format: true,
+          interim_results: true,
+          model: "nova-2"
         });
-      } else {
-        setLiveTranscript(text);
+        
+        deepgramRef.current.onTranscript((text, isFinal) => {
+          if (isFinal) {
+            setFinalTranscript(prev => prev + " " + text);
+            setRecordingNotes(prev => {
+              if (prev.trim()) {
+                return prev + "\n" + text;
+              }
+              return text;
+            });
+          } else {
+            setLiveTranscript(text);
+          }
+        });
+        
+        deepgramRef.current.onError((error) => {
+          console.error("Deepgram error:", error);
+          toast({
+            variant: "destructive",
+            title: "Transcription Error",
+            description: error,
+          });
+        });
+      } catch (error) {
+        console.error("Failed to initialize Deepgram:", error);
       }
-    });
+    };
     
-    deepgramRef.current.onError((error) => {
-      toast({
-        variant: "destructive",
-        title: "Recording Error",
-        description: error,
-      });
-    });
+    initializeDeepgram();
     
     return () => {
       if (deepgramRef.current?.isActive) {
@@ -154,10 +163,13 @@ const RecordPage = () => {
     }
     
     try {
+      console.log("Starting recording process...");
       setLiveTranscript("");
       setFinalTranscript("");
       
+      console.log("Requesting microphone access...");
       const stream = await getMediaStream();
+      console.log("Microphone access granted");
       
       audioChunksRef.current = [];
       mediaRecorderRef.current = createMediaRecorder(stream, (event) => {
@@ -167,13 +179,29 @@ const RecordPage = () => {
       });
       
       mediaRecorderRef.current.onstop = () => {
+        console.log("MediaRecorder stopped, creating audio blob");
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         setAudioBlob(audioBlob);
       };
       
+      console.log("Starting MediaRecorder...");
       mediaRecorderRef.current.start();
       
-      await deepgramRef.current?.start();
+      console.log("Starting Deepgram transcription...");
+      if (deepgramRef.current) {
+        try {
+          await deepgramRef.current.start();
+          console.log("Deepgram started successfully");
+        } catch (deepgramError) {
+          console.error("Failed to start Deepgram:", deepgramError);
+          toast({
+            title: "Transcription Warning",
+            description: "Recording will continue, but transcription may not work.",
+          });
+        }
+      } else {
+        console.warn("Deepgram not initialized, recording without transcription");
+      }
       
       const interval = setInterval(() => {
         setRecordingTime(prev => prev + 1);
@@ -188,24 +216,29 @@ const RecordPage = () => {
         description: "Your lecture recording has begun",
       });
     } catch (error) {
+      console.error("Recording start error:", error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       
       if (errorMessage.includes('microphone-permission-denied')) {
+        console.log("Microphone permission denied, showing dialog");
         setMicPermissionDialog({
           open: true,
           errorType: "permission-denied"
         });
       } else if (errorMessage.includes('microphone-not-found')) {
+        console.log("Microphone not found, showing dialog");
         setMicPermissionDialog({
           open: true,
           errorType: "not-found"
         });
       } else if (errorMessage.includes('microphone-in-use')) {
+        console.log("Microphone in use, showing dialog");
         setMicPermissionDialog({
           open: true,
           errorType: "in-use"
         });
       } else {
+        console.log("Unknown microphone error, showing dialog");
         setMicPermissionDialog({
           open: true,
           errorType: "other"

@@ -120,13 +120,39 @@ export const convertAudioToCompatibleFormat = (audioUrl: string): string => {
 
 export const getMediaStream = async (): Promise<MediaStream> => {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    console.log("Getting user media stream...");
+    
+    // Check if getUserMedia is supported
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error("Your browser doesn't support audio recording");
+    }
+    
+    // Try to get microphone access with explicit audio constraints
+    const constraints = {
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
+    };
+    
+    console.log("Requesting media with constraints:", constraints);
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    console.log("Media stream obtained successfully");
+    
+    // Verify that we have audio tracks
+    if (stream.getAudioTracks().length === 0) {
+      throw new Error("No audio track available in the stream");
+    }
+    
     return stream;
   } catch (error) {
     console.error("Error accessing microphone:", error);
     
-    // Check for permission denied errors
+    // Check for specific permission denied errors
     if (error instanceof DOMException) {
+      console.log("DOMException type:", error.name);
+      
       if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
         throw new Error('microphone-permission-denied');
       } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
@@ -144,11 +170,20 @@ export const createMediaRecorder = (stream: MediaStream, onDataAvailable: (event
   let mediaRecorder: MediaRecorder;
   
   try {
+    console.log("Creating MediaRecorder with audio/webm...");
     mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
   } catch (e) {
-    console.log("audio/webm not supported, falling back to default");
-    mediaRecorder = new MediaRecorder(stream);
+    console.log("audio/webm not supported, trying audio/webm;codecs=opus");
+    try {
+      mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+    } catch (e2) {
+      console.log("Falling back to default MediaRecorder format");
+      mediaRecorder = new MediaRecorder(stream);
+    }
   }
+  
+  // Log the selected format
+  console.log("MediaRecorder created with mimeType:", mediaRecorder.mimeType);
   
   mediaRecorder.ondataavailable = onDataAvailable;
   return mediaRecorder;

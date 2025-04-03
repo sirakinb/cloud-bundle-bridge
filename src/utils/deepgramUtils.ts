@@ -1,4 +1,3 @@
-
 // Deepgram API integration for real-time speech-to-text
 
 // API key for Deepgram
@@ -94,33 +93,62 @@ export class DeepgramStream {
   // Initialize and start the recording and transcription
   public async start(): Promise<void> {
     if (this.isRecording) {
+      console.log("Already recording, ignoring start request");
       return;
     }
     
     try {
+      console.log("DeepgramStream: Starting...");
+      
       // Get microphone access
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      try {
+        this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log("DeepgramStream: Microphone access granted");
+      } catch (micError) {
+        console.error("DeepgramStream: Microphone access error:", micError);
+        // Re-throw with better error context for handling in RecordPage
+        if (micError instanceof DOMException) {
+          if (micError.name === 'NotAllowedError' || micError.name === 'PermissionDeniedError') {
+            throw new Error('microphone-permission-denied');
+          } else if (micError.name === 'NotFoundError' || micError.name === 'DevicesNotFoundError') {
+            throw new Error('microphone-not-found');
+          } else if (micError.name === 'NotReadableError' || micError.name === 'TrackStartError') {
+            throw new Error('microphone-in-use');
+          }
+        }
+        throw micError;
+      }
       
       // Connect to Deepgram first
-      await this.connectToDeepgram();
+      try {
+        await this.connectToDeepgram();
+        console.log("DeepgramStream: Connected to Deepgram");
+      } catch (deepgramError) {
+        console.error("DeepgramStream: Deepgram connection error:", deepgramError);
+        // We'll continue even if Deepgram fails, as we can still record audio
+        this.onErrorCallback(`Transcription service unavailable: ${deepgramError.message}`);
+      }
       
       // Set up media recorder only after connection is established
-      if (this.isConnected) {
+      if (this.mediaStream) {
         this.setupMediaRecorder();
         this.isRecording = true;
         this.onStartCallback();
+        console.log("DeepgramStream: Recording started successfully");
       } else {
-        throw new Error("Failed to connect to Deepgram");
+        throw new Error("No media stream available");
       }
     } catch (error) {
       console.error("DeepgramStream start error:", error);
-      this.onErrorCallback(`Failed to start recording: ${error}`);
       
       // Clean up any resources
       if (this.mediaStream) {
         this.mediaStream.getTracks().forEach(track => track.stop());
         this.mediaStream = null;
       }
+      
+      // Re-throw the error to be handled by the calling code
+      throw error;
     }
   }
   
@@ -170,90 +198,87 @@ export class DeepgramStream {
   
   // Create a WebSocket connection to Deepgram
   private async connectToDeepgram(): Promise<void> {
-    // Construct the URL with query parameters
-    const queryParams = new URLSearchParams();
-    
-    // Add all options as query parameters
-    Object.entries(this.options).forEach(([key, value]) => {
-      if (value !== undefined) {
-        queryParams.append(key, value.toString());
-      }
-    });
-    
-    const wsUrl = `wss://api.deepgram.com/v1/listen?${queryParams.toString()}`;
-    
-    // Create WebSocket connection
-    this.socket = new WebSocket(wsUrl);
-    
-    // Set authorization header
-    this.socket.onopen = () => {
-      if (this.socket) {
-        // Set the Authorization header with the API key
-        this.socket.send(JSON.stringify({
-          type: "Header",
-          Authorization: `Token ${DEEPGRAM_API_KEY}`
-        }));
+    try {
+      console.log("Connecting to Deepgram...");
+      
+      // Construct the URL with query parameters
+      const queryParams = new URLSearchParams();
+      
+      // Add all options as query parameters
+      Object.entries(this.options).forEach(([key, value]) => {
+        if (value !== undefined) {
+          queryParams.append(key, value.toString());
+        }
+      });
+      
+      const wsUrl = `wss://api.deepgram.com/v1/listen?${queryParams.toString()}`;
+      console.log("Deepgram WebSocket URL:", wsUrl);
+      
+      // Create WebSocket connection
+      this.socket = new WebSocket(wsUrl);
+      
+      // Set up a promise that resolves when the connection is opened
+      const connectionPromise = new Promise<void>((resolve, reject) => {
+        if (!this.socket) {
+          reject(new Error("Failed to create WebSocket"));
+          return;
+        }
         
-        this.socket.binaryType = 'arraybuffer';
-        this.isConnected = true;
-        console.log("Connected to Deepgram");
+        // Handle successful connection
+        this.socket.onopen = () => {
+          if (this.socket) {
+            console.log("WebSocket connection opened, sending authorization");
+            // Send the API key for authentication
+            this.socket.send(JSON.stringify({
+              type: "Header",
+              Authorization: `Token ${DEEPGRAM_API_KEY}`
+            }));
+            
+            this.socket.binaryType = 'arraybuffer';
+            this.isConnected = true;
+            resolve();
+          }
+        };
+        
+        // Handle connection errors
+        this.socket.onerror = (error) => {
+          console.error("WebSocket connection error:", error);
+          reject(new Error("WebSocket connection failed"));
+        };
+      });
+      
+      // Set up message handler
+      if (this.socket) {
+        this.socket.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            this.handleDeepgramResponse(data);
+          } catch (error) {
+            console.error("Error parsing Deepgram response:", error);
+          }
+        };
+        
+        this.socket.onclose = (event) => {
+          console.log(`WebSocket closed with code ${event.code}: ${event.reason}`);
+          this.isConnected = false;
+        };
       }
-    };
-    
-    // Handle incoming messages
-    this.socket.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        this.handleDeepgramResponse(data);
-      } catch (error) {
-        console.error("Error parsing Deepgram response:", error);
-      }
-    };
-    
-    // Handle errors
-    this.socket.onerror = (error) => {
-      console.error("WebSocket error:", error);
-      this.onErrorCallback(`WebSocket error: ${error}`);
-      this.isConnected = false;
-    };
-    
-    // Handle closing
-    this.socket.onclose = (event) => {
-      console.log(`WebSocket closed with code ${event.code}: ${event.reason}`);
-      this.isConnected = false;
-    };
-    
-    // Wait for connection to be established with a timeout
-    await new Promise<void>((resolve, reject) => {
-      if (!this.socket) {
-        reject(new Error("Socket is null"));
-        return;
-      }
       
-      // Set a timeout for connection
-      const timeout = setTimeout(() => {
-        this.socket?.removeEventListener('open', onOpen);
-        this.socket?.removeEventListener('error', onError);
-        reject(new Error("WebSocket connection timed out after 5 seconds"));
-      }, 5000);
+      // Wait for the connection with a timeout
+      const timeoutPromise = new Promise<void>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error("Connection to Deepgram timed out after 5 seconds"));
+        }, 5000);
+      });
       
-      const onOpen = () => {
-        this.socket?.removeEventListener('open', onOpen);
-        this.socket?.removeEventListener('error', onError);
-        clearTimeout(timeout);
-        resolve();
-      };
+      // Wait for either the connection or the timeout
+      await Promise.race([connectionPromise, timeoutPromise]);
+      console.log("Deepgram connection established successfully");
       
-      const onError = (err: Event) => {
-        this.socket?.removeEventListener('open', onOpen);
-        this.socket?.removeEventListener('error', onError);
-        clearTimeout(timeout);
-        reject(new Error(`WebSocket connection failed: ${err}`));
-      };
-      
-      this.socket.addEventListener('open', onOpen);
-      this.socket.addEventListener('error', onError);
-    });
+    } catch (error) {
+      console.error("Failed to connect to Deepgram:", error);
+      throw error;
+    }
   }
   
   // Set up the MediaRecorder for audio capturing
@@ -367,5 +392,31 @@ export const captureAudio = async (): Promise<Blob> => {
   } catch (error) {
     console.error("Error accessing microphone:", error);
     throw error;
+  }
+};
+
+// Make sure the error handling in getMediaStream correctly propagates permissions errors
+export const getMediaStream = async (): Promise<MediaStream> => {
+  try {
+    console.log("Requesting user media permissions...");
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    console.log("Media permissions granted");
+    return stream;
+  } catch (error) {
+    console.error("Error accessing microphone:", error);
+    
+    // Check for permission denied errors
+    if (error instanceof DOMException) {
+      console.log("DOMException name:", error.name);
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        throw new Error('microphone-permission-denied');
+      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        throw new Error('microphone-not-found');
+      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+        throw new Error('microphone-in-use');
+      }
+    }
+    
+    throw new Error(`Microphone access error: ${error}`);
   }
 };
