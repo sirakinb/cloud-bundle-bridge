@@ -2,10 +2,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Play, Pause, Volume2, VolumeX, RefreshCw, Download, FileText } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, RefreshCw, Download, FileText, Loader } from "lucide-react";
 import { formatTime, normalizeAudioUrl, getMimeTypeFromDataUrl } from "@/utils/formatUtils";
 import { useToast } from "@/hooks/use-toast";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { processAudioForCompatibility, isValidAudioBlob } from "@/utils/audioProcessingUtils";
 
 interface AudioPlayerProps {
   audioUrl: string;
@@ -32,6 +33,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const [retryCount, setRetryCount] = useState(0);
   const [showTranscription, setShowTranscription] = useState(false);
   const [audioSrc, setAudioSrc] = useState<string>("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState("");
   const audioRef = useRef<HTMLAudioElement>(null);
   const { toast } = useToast();
 
@@ -44,25 +47,67 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       return;
     }
 
-    // Process and normalize the audio URL for better compatibility
-    try {
-      const normalizedUrl = normalizeAudioUrl(audioUrl);
-      console.log("AudioPlayer using normalized URL:", normalizedUrl.substring(0, 30) + "...");
-      console.log("Audio format:", format);
-      
-      // Set the processed audio source
-      setAudioSrc(normalizedUrl);
-      setHasError(false);
-      setIsLoading(true);
-      
-      if (audioRef.current) {
-        audioRef.current.load();
+    const processAudio = async () => {
+      try {
+        // Set processing state
+        setIsProcessing(true);
+        setProcessingStatus("Analyzing audio format...");
+        
+        // First normalize the URL for better compatibility
+        const normalizedUrl = normalizeAudioUrl(audioUrl);
+        console.log("AudioPlayer using normalized URL:", normalizedUrl.substring(0, 30) + "...");
+        console.log("Audio format:", format);
+        
+        // If the URL is a data URL, convert it to a blob for processing
+        let audioBlob: Blob;
+        if (normalizedUrl.startsWith('data:')) {
+          setProcessingStatus("Converting audio data...");
+          const response = await fetch(normalizedUrl);
+          audioBlob = await response.blob();
+        } else {
+          setProcessingStatus("Fetching audio file...");
+          const response = await fetch(normalizedUrl);
+          audioBlob = await response.blob();
+        }
+        
+        // Check if the blob is valid audio
+        setProcessingStatus("Validating audio file...");
+        const isValid = await isValidAudioBlob(audioBlob);
+        
+        if (!isValid) {
+          console.error("Invalid audio blob");
+          setHasError(true);
+          setIsProcessing(false);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Process the audio for compatibility
+        setProcessingStatus("Processing audio for compatibility...");
+        const { audioUrl: processedUrl, metadata } = await processAudioForCompatibility(audioBlob);
+        
+        console.log("Audio processing complete:", metadata);
+        setProcessingStatus("Audio processing complete");
+        
+        // Set the processed audio source
+        setAudioSrc(processedUrl);
+        setHasError(false);
+        
+        if (audioRef.current) {
+          audioRef.current.load();
+        }
+      } catch (error) {
+        console.error("Error processing audio:", error);
+        setHasError(true);
+        // Try to still use the original URL
+        setAudioSrc(normalizeAudioUrl(audioUrl));
+      } finally {
+        setIsProcessing(false);
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error("Error normalizing audio URL:", error);
-      setHasError(true);
-      setIsLoading(false);
-    }
+    };
+    
+    processAudio();
   }, [audioUrl, format]);
 
   const togglePlay = () => {
@@ -177,39 +222,36 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     console.log("Audio can play now");
   };
   
-  const handleRetry = () => {
+  const handleRetry = async () => {
     // Try different approaches to fix the audio playback
-    try {
-      // Create a new audio element approach
-      if (retryCount === 0) {
-        // First retry: Try adding format hints
-        const formatHint = format || 'mp3';
-        const urlWithHint = audioUrl.includes('#') ? audioUrl : `${audioUrl}#.${formatHint}`;
-        console.log("Retrying with format hint:", formatHint);
-        setAudioSrc(normalizeAudioUrl(urlWithHint));
-      } else {
-        // Second retry: Try converting data URL if possible
-        if (audioUrl.startsWith('data:audio/')) {
-          // Force to MP3 MIME type
-          const forcedMp3Url = audioUrl.replace(/^data:audio\/[^;]+/, 'data:audio/mp3');
-          console.log("Retrying with forced MP3 MIME type");
-          setAudioSrc(forcedMp3Url);
-        } else {
-          // For blob URLs or others, try a different approach
-          const blobWithHint = `${audioUrl}#.mp3`;
-          setAudioSrc(normalizeAudioUrl(blobWithHint));
-        }
-      }
-    } catch (error) {
-      console.error("Error during retry:", error);
-    }
-    
     setRetryCount(prev => prev + 1);
     setHasError(false);
     setIsLoading(true);
+    setIsProcessing(true);
+    setProcessingStatus("Retrying audio processing...");
     
-    if (audioRef.current) {
-      audioRef.current.load();
+    try {
+      // If we have a URL, try to fetch it and process it again
+      if (audioUrl) {
+        const response = await fetch(audioUrl);
+        const audioBlob = await response.blob();
+        
+        // Process the audio for compatibility
+        const { audioUrl: processedUrl } = await processAudioForCompatibility(audioBlob);
+        setAudioSrc(processedUrl);
+      }
+    } catch (error) {
+      console.error("Error during retry:", error);
+      // If all else fails, try to set a different format hint
+      const formatHint = format || 'mp3';
+      const urlWithHint = audioUrl.includes('#') ? audioUrl : `${audioUrl}#.${formatHint}`;
+      setAudioSrc(normalizeAudioUrl(urlWithHint));
+    } finally {
+      setIsProcessing(false);
+      
+      if (audioRef.current) {
+        audioRef.current.load();
+      }
     }
   };
 
@@ -259,13 +301,20 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       
       <div className="text-sm font-medium mb-2 text-foreground">{title}</div>
       
+      {isProcessing && (
+        <div className="flex items-center justify-center p-2 mb-3 bg-primary/10 rounded">
+          <Loader className="h-4 w-4 mr-2 animate-spin text-primary" />
+          <span className="text-sm text-primary">{processingStatus || "Processing Audio..."}</span>
+        </div>
+      )}
+      
       <div className="flex items-center gap-2 mb-3">
         <Button 
           variant="outline" 
           size="sm" 
           className="h-8 w-8 p-0" 
           onClick={togglePlay}
-          disabled={hasError && retryCount > 1}
+          disabled={hasError && retryCount > 1 || isProcessing}
         >
           {isLoading ? (
             <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
@@ -286,7 +335,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             step={0.1}
             onValueChange={handleSliderChange}
             className="flex-1"
-            disabled={hasError && retryCount > 1}
+            disabled={hasError && retryCount > 1 || isProcessing}
           />
           <div className="text-xs text-foreground/70 w-12">
             {formatTime(Math.floor(duration))}
@@ -299,7 +348,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             size="sm" 
             className="h-8 w-8 p-0" 
             onClick={toggleMute}
-            disabled={hasError && retryCount > 1}
+            disabled={hasError && retryCount > 1 || isProcessing}
           >
             {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
           </Button>
@@ -309,7 +358,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             step={0.01}
             onValueChange={handleVolumeChange}
             className="w-16"
-            disabled={hasError && retryCount > 1}
+            disabled={hasError && retryCount > 1 || isProcessing}
           />
         </div>
       </div>
@@ -333,6 +382,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             size="sm"
             className="text-xs flex items-center gap-1"
             onClick={handleDownload}
+            disabled={isProcessing}
           >
             <Download className="h-3 w-3" />
             Download ({format || 'mp3'})
@@ -367,4 +417,3 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     </div>
   );
 };
-
