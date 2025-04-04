@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,7 +37,8 @@ import {
   getMediaStream, 
   createMediaRecorder,
   generateAudioBlob,
-  createFallbackAudioBlob
+  createFallbackAudioBlob,
+  convertAudioToCompatibleFormat
 } from "@/utils/recordingUtils";
 import { FolderDialog } from "@/components/FolderDialog";
 import { AudioPlayer } from "@/components/AudioPlayer";
