@@ -2,17 +2,27 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Play, Pause, Volume2, VolumeX, RefreshCw } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, RefreshCw, Download, FileText } from "lucide-react";
 import { formatTime } from "@/utils/formatUtils";
 import { useToast } from "@/hooks/use-toast";
 import { convertAudioToCompatibleFormat, generateAudioBlob } from "@/utils/recordingUtils";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface AudioPlayerProps {
   audioUrl: string;
   title: string;
+  transcription?: string;
+  format?: string;
+  allowDownload?: boolean;
 }
 
-export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, title }) => {
+export const AudioPlayer: React.FC<AudioPlayerProps> = ({ 
+  audioUrl, 
+  title, 
+  transcription, 
+  format = "mp3",
+  allowDownload = false
+}) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -21,6 +31,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, title }) => 
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [showTranscription, setShowTranscription] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const { toast } = useToast();
 
@@ -40,7 +51,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, title }) => 
       
       // Load the new audio source
       audioRef.current.load();
-      console.log("Loading audio URL:", safeAudioUrl.substring(0, 50));
+      console.log("Loading audio URL:", safeAudioUrl.substring(0, 50) + "...");
     }
     
     // Clean up function to revoke object URLs when component unmounts or URL changes
@@ -84,7 +95,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, title }) => 
             toast({
               variant: "destructive",
               title: "Playback Error",
-              description: "Could not play this recording. The format may be unsupported."
+              description: `Could not play this recording (${format}). The format may be unsupported.`
             });
           });
       }
@@ -154,7 +165,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, title }) => 
       toast({
         variant: "destructive",
         title: "Playback Error",
-        description: "Could not play this recording. The format may be unsupported."
+        description: `Could not play this recording (${format}). The format may be unsupported.`
       });
     }
   };
@@ -176,6 +187,21 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, title }) => 
     setHasError(false);
     setIsLoading(true);
     console.log("Retrying with fallback audio format");
+  };
+
+  const handleDownload = () => {
+    // Create a download link for the audio
+    const downloadLink = document.createElement('a');
+    downloadLink.href = safeAudioUrl;
+    downloadLink.download = `${title.replace(/\s+/g, '_')}.${format || 'mp3'}`;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+    
+    toast({
+      title: "Download Started",
+      description: `Downloading "${title}.${format || 'mp3'}"`,
+    });
   };
 
   return (
@@ -247,6 +273,38 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, title }) => 
           />
         </div>
       </div>
+      
+      <div className="flex justify-between items-center">
+        {transcription && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs flex items-center gap-1"
+            onClick={() => setShowTranscription(!showTranscription)}
+          >
+            <FileText className="h-3 w-3" />
+            {showTranscription ? "Hide Transcription" : "Show Transcription"}
+          </Button>
+        )}
+        
+        {allowDownload && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs flex items-center gap-1"
+            onClick={handleDownload}
+          >
+            <Download className="h-3 w-3" />
+            Download ({format || 'mp3'})
+          </Button>
+        )}
+      </div>
+      
+      {transcription && showTranscription && (
+        <div className="mt-3 p-3 bg-background rounded border text-sm">
+          <p>{transcription}</p>
+        </div>
+      )}
       
       {hasError && (
         <div className="text-xs text-destructive mt-2">
