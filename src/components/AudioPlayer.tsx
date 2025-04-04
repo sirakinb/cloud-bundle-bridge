@@ -1,9 +1,8 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Play, Pause, Volume2, VolumeX, RefreshCw, Download, FileText } from "lucide-react";
-import { formatTime } from "@/utils/formatUtils";
+import { formatTime, normalizeAudioUrl, getMimeTypeFromDataUrl } from "@/utils/formatUtils";
 import { useToast } from "@/hooks/use-toast";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
@@ -31,7 +30,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const [hasError, setHasError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [showTranscription, setShowTranscription] = useState(false);
-  const [audioSrc, setAudioSrc] = useState<string>(audioUrl);
+  const [audioSrc, setAudioSrc] = useState<string>("");
   const audioRef = useRef<HTMLAudioElement>(null);
   const { toast } = useToast();
 
@@ -44,16 +43,24 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       return;
     }
 
-    console.log("AudioPlayer received format:", format);
-    console.log("AudioPlayer URL type:", audioUrl.substring(0, 30) + "...");
-    
-    // Use the provided URL directly - all processing should happen before it gets here
-    setAudioSrc(audioUrl);
-    setHasError(false);
-    setIsLoading(true);
-    
-    if (audioRef.current) {
-      audioRef.current.load();
+    // Process and normalize the audio URL for better compatibility
+    try {
+      const normalizedUrl = normalizeAudioUrl(audioUrl);
+      console.log("AudioPlayer using normalized URL:", normalizedUrl.substring(0, 30) + "...");
+      console.log("Audio format:", format);
+      
+      // Set the processed audio source
+      setAudioSrc(normalizedUrl);
+      setHasError(false);
+      setIsLoading(true);
+      
+      if (audioRef.current) {
+        audioRef.current.load();
+      }
+    } catch (error) {
+      console.error("Error normalizing audio URL:", error);
+      setHasError(true);
+      setIsLoading(false);
     }
   }, [audioUrl, format]);
 
@@ -82,10 +89,12 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             setIsPlaying(false);
             setIsLoading(false);
             setHasError(true);
+            
+            const mimeType = getMimeTypeFromDataUrl(audioSrc);
             toast({
               variant: "destructive",
               title: "Playback Error",
-              description: `Could not play this recording (${format}). The format may be unsupported.`
+              description: `Could not play this recording (${mimeType}). The format may be unsupported.`
             });
           });
       }
@@ -152,10 +161,11 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     
     // Only show toast on first error
     if (retryCount === 0) {
+      const mimeType = getMimeTypeFromDataUrl(audioSrc);
       toast({
         variant: "destructive",
         title: "Playback Error",
-        description: `Could not play this recording (${format}). The format may be unsupported.`
+        description: `Could not play this recording (${mimeType}). The format may be unsupported.`
       });
     }
   };
@@ -167,18 +177,27 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   };
   
   const handleRetry = () => {
-    // Attempt to use the original URL but with different format hints
+    // Try different approaches to fix the audio playback
     try {
-      // Try converting data URL if possible
-      if (audioUrl.startsWith('data:audio/')) {
-        const mimeType = audioUrl.split(';')[0].split(':')[1];
-        console.log("Retrying with explicit MIME type:", mimeType);
-        setAudioSrc(audioUrl);
+      // Create a new audio element approach
+      if (retryCount === 0) {
+        // First retry: Try adding format hints
+        const formatHint = format || 'mp3';
+        const urlWithHint = audioUrl.includes('#') ? audioUrl : `${audioUrl}#.${formatHint}`;
+        console.log("Retrying with format hint:", formatHint);
+        setAudioSrc(normalizeAudioUrl(urlWithHint));
       } else {
-        // For blob URLs, try adding an extension hint
-        const blobWithHint = `${audioUrl}#.${format || 'mp3'}`;
-        console.log("Retrying with blob URL hint:", blobWithHint);
-        setAudioSrc(blobWithHint);
+        // Second retry: Try converting data URL if possible
+        if (audioUrl.startsWith('data:audio/')) {
+          // Force to MP3 MIME type
+          const forcedMp3Url = audioUrl.replace(/^data:audio\/[^;]+/, 'data:audio/mp3');
+          console.log("Retrying with forced MP3 MIME type");
+          setAudioSrc(forcedMp3Url);
+        } else {
+          // For blob URLs or others, try a different approach
+          const blobWithHint = `${audioUrl}#.mp3`;
+          setAudioSrc(normalizeAudioUrl(blobWithHint));
+        }
       }
     } catch (error) {
       console.error("Error during retry:", error);
@@ -194,18 +213,29 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   };
 
   const handleDownload = () => {
-    // Create a download link for the audio
-    const downloadLink = document.createElement('a');
-    downloadLink.href = audioSrc;
-    downloadLink.download = `${title.replace(/\s+/g, '_')}.${format || 'mp3'}`;
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    document.body.removeChild(downloadLink);
+    if (!audioSrc) return;
     
-    toast({
-      title: "Download Started",
-      description: `Downloading "${title}.${format || 'mp3'}"`,
-    });
+    try {
+      // Create a download link for the audio
+      const downloadLink = document.createElement('a');
+      downloadLink.href = audioSrc;
+      downloadLink.download = `${title.replace(/\s+/g, '_')}.${format || 'mp3'}`;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+      
+      toast({
+        title: "Download Started",
+        description: `Downloading "${title}.${format || 'mp3'}"`,
+      });
+    } catch (error) {
+      console.error("Download error:", error);
+      toast({
+        variant: "destructive",
+        title: "Download Error",
+        description: "Could not download the audio file.",
+      });
+    }
   };
 
   return (
@@ -219,7 +249,13 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         onError={handleError}
         onCanPlay={handleCanPlay}
         preload="metadata"
-      />
+        type="audio/mp3"
+      >
+        <source src={audioSrc} type="audio/mp3" />
+        <source src={audioSrc} type="audio/mpeg" />
+        <source src={audioSrc} type="audio/wav" />
+        Your browser does not support the audio element.
+      </audio>
       
       <div className="text-sm font-medium mb-2 text-foreground">{title}</div>
       
