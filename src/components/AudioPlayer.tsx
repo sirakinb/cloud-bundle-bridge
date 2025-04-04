@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -249,7 +250,6 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         onError={handleError}
         onCanPlay={handleCanPlay}
         preload="metadata"
-        type="audio/mp3"
       >
         <source src={audioSrc} type="audio/mp3" />
         <source src={audioSrc} type="audio/mpeg" />
@@ -367,3 +367,4 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     </div>
   );
 };
+
