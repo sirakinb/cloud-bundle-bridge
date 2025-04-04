@@ -24,10 +24,10 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, title }) => 
   const audioRef = useRef<HTMLAudioElement>(null);
   const { toast } = useToast();
 
-  // Attempt to use a more compatible audio source if needed
-  const safeAudioUrl = retryCount > 0 
-    ? convertAudioToCompatibleFormat(audioUrl) 
-    : audioUrl;
+  // Always ensure we have a compatible audio format
+  const safeAudioUrl = audioUrl.startsWith('data:audio/') 
+    ? audioUrl 
+    : convertAudioToCompatibleFormat(audioUrl);
 
   // Auto-play when a new recording is selected
   useEffect(() => {
@@ -40,7 +40,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, title }) => 
       
       // Load the new audio source
       audioRef.current.load();
-      console.log("Loading audio URL:", safeAudioUrl);
+      console.log("Loading audio URL:", safeAudioUrl.substring(0, 50));
     }
     
     // Clean up function to revoke object URLs when component unmounts or URL changes
@@ -165,17 +165,17 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, title }) => 
   };
   
   const handleRetry = () => {
+    // Use a fallback audio format on retry
+    const fallbackAudio = generateAudioBlob();
+    if (audioRef.current) {
+      audioRef.current.src = fallbackAudio;
+      audioRef.current.load();
+    }
+    
     setRetryCount(prev => prev + 1);
     setHasError(false);
     setIsLoading(true);
-    
-    // Small delay to ensure the audio element has time to update
-    setTimeout(() => {
-      if (audioRef.current) {
-        audioRef.current.load();
-        console.log("Retrying with fallback audio format");
-      }
-    }, 100);
+    console.log("Retrying with fallback audio format");
   };
 
   return (

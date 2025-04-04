@@ -160,16 +160,18 @@ export const getMediaStream = async (): Promise<MediaStream> => {
 
 export const createMediaRecorder = (stream: MediaStream, onDataAvailable: (event: BlobEvent) => void): MediaRecorder => {
   let mediaRecorder: MediaRecorder;
-  let mimeType = 'audio/webm';
   
-  // Try different mime types until one works
+  // Use audio/mp3 or audio/mpeg format which is more widely supported
   const mimeTypes = [
+    'audio/mp3',
+    'audio/mpeg', 
+    'audio/webm;codecs=opus',
     'audio/webm', 
-    'audio/webm;codecs=opus', 
-    'audio/mp4', 
     'audio/ogg', 
     'audio/wav'
   ];
+  
+  let mimeType = 'audio/mp3'; // Default to a widely supported format
   
   for (const type of mimeTypes) {
     try {
@@ -196,7 +198,7 @@ export const createMediaRecorder = (stream: MediaStream, onDataAvailable: (event
 };
 
 export const createFallbackAudioBlob = (): Blob => {
-  // Create a small audio blob when recording fails
+  // Create a small audio blob when recording fails - using mp3 format
   const base64Data = "SUQzAwAAAAAAJlRQRTEAAAAcAAAAU291bmRKYXkuY29tIFNvdW5kIEVmZmVjdHNUQUxCAAAAGAAAAGh0dHA6Ly93d3cuU291bmRKYXkuY29tVFBFMQAAABwAAABTb3VuZEpheS5jb20gU291bmQgRWZmZWN0VENPTgAAABMAAABPbmUgQmVlcCBTb3VuZCBFZmZlY3RDTU9EAAAAEAAAADk5OSBCZWVwIFNvdW5kcw==";
   const byteCharacters = atob(base64Data);
   const byteNumbers = new Array(byteCharacters.length);

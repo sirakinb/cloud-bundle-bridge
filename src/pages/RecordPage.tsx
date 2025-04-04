@@ -161,7 +161,7 @@ const RecordPage = () => {
           mediaRecorderRef.current.onstop = () => {
             console.log("MediaRecorder stopped, creating audio blob");
             if (audioChunksRef.current.length > 0) {
-              const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+              const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/mp3' });
               setAudioBlob(audioBlob);
             } else {
               console.warn("No audio chunks recorded, using fallback blob");
@@ -170,7 +170,7 @@ const RecordPage = () => {
           };
           
           console.log("Starting MediaRecorder...");
-          mediaRecorderRef.current.start();
+          mediaRecorderRef.current.start(100);
         } catch (recorderError) {
           console.error("Failed to create or start MediaRecorder:", recorderError);
           setIsFallbackMode(true);
@@ -307,6 +307,10 @@ const RecordPage = () => {
     reader.onloadend = () => {
       const audioUrl = reader.result as string;
       
+      const compatibleAudioUrl = audioUrl.startsWith('data:audio/') 
+        ? audioUrl 
+        : convertAudioToCompatibleFormat(audioUrl);
+      
       const newRecording: Recording = {
         id: Date.now().toString(36),
         title: recordingTitle,
@@ -314,9 +318,10 @@ const RecordPage = () => {
         duration: recordingTime,
         date: new Date().toISOString(),
         folderId: folderId,
-        audioUrl: audioUrl
+        audioUrl: compatibleAudioUrl
       };
       
+      console.log("Saving recording with format:", compatibleAudioUrl.substring(0, 30));
       saveRecording(newRecording);
       
       setRecordings([...recordings, newRecording]);
