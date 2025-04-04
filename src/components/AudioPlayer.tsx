@@ -5,7 +5,6 @@ import { Slider } from "@/components/ui/slider";
 import { Play, Pause, Volume2, VolumeX, RefreshCw, Download, FileText } from "lucide-react";
 import { formatTime } from "@/utils/formatUtils";
 import { useToast } from "@/hooks/use-toast";
-import { convertAudioToCompatibleFormat, generateAudioBlob } from "@/utils/recordingUtils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface AudioPlayerProps {
@@ -32,40 +31,31 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const [hasError, setHasError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [showTranscription, setShowTranscription] = useState(false);
+  const [audioSrc, setAudioSrc] = useState<string>(audioUrl);
   const audioRef = useRef<HTMLAudioElement>(null);
   const { toast } = useToast();
 
-  // Always ensure we have a compatible audio format
-  const safeAudioUrl = audioUrl.startsWith('data:audio/') 
-    ? audioUrl 
-    : convertAudioToCompatibleFormat(audioUrl);
-
-  // Auto-play when a new recording is selected
+  // Ensure our audio format is correct for browser playback
   useEffect(() => {
-    if (audioRef.current) {
-      // Reset player state for new recordings
-      setCurrentTime(0);
-      setIsPlaying(false);
-      setIsLoading(true);
-      setHasError(false);
-      
-      // Load the new audio source
-      audioRef.current.load();
-      console.log("Loading audio URL:", safeAudioUrl.substring(0, 50) + "...");
+    // Ensure we're working with a valid audio URL
+    if (!audioUrl) {
+      setHasError(true);
+      setIsLoading(false);
+      return;
     }
+
+    console.log("AudioPlayer received format:", format);
+    console.log("AudioPlayer URL type:", audioUrl.substring(0, 30) + "...");
     
-    // Clean up function to revoke object URLs when component unmounts or URL changes
-    return () => {
-      if (audioUrl.startsWith('blob:')) {
-        try {
-          URL.revokeObjectURL(audioUrl);
-          console.log("Revoked audio URL:", audioUrl);
-        } catch (error) {
-          console.error("Error revoking URL:", error);
-        }
-      }
-    };
-  }, [safeAudioUrl]);
+    // Use the provided URL directly - all processing should happen before it gets here
+    setAudioSrc(audioUrl);
+    setHasError(false);
+    setIsLoading(true);
+    
+    if (audioRef.current) {
+      audioRef.current.load();
+    }
+  }, [audioUrl, format]);
 
   const togglePlay = () => {
     if (!audioRef.current || hasError) return;
@@ -173,26 +163,40 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const handleCanPlay = () => {
     setIsLoading(false);
     setHasError(false);
+    console.log("Audio can play now");
   };
   
   const handleRetry = () => {
-    // Use a fallback audio format on retry
-    const fallbackAudio = generateAudioBlob();
-    if (audioRef.current) {
-      audioRef.current.src = fallbackAudio;
-      audioRef.current.load();
+    // Attempt to use the original URL but with different format hints
+    try {
+      // Try converting data URL if possible
+      if (audioUrl.startsWith('data:audio/')) {
+        const mimeType = audioUrl.split(';')[0].split(':')[1];
+        console.log("Retrying with explicit MIME type:", mimeType);
+        setAudioSrc(audioUrl);
+      } else {
+        // For blob URLs, try adding an extension hint
+        const blobWithHint = `${audioUrl}#.${format || 'mp3'}`;
+        console.log("Retrying with blob URL hint:", blobWithHint);
+        setAudioSrc(blobWithHint);
+      }
+    } catch (error) {
+      console.error("Error during retry:", error);
     }
     
     setRetryCount(prev => prev + 1);
     setHasError(false);
     setIsLoading(true);
-    console.log("Retrying with fallback audio format");
+    
+    if (audioRef.current) {
+      audioRef.current.load();
+    }
   };
 
   const handleDownload = () => {
     // Create a download link for the audio
     const downloadLink = document.createElement('a');
-    downloadLink.href = safeAudioUrl;
+    downloadLink.href = audioSrc;
     downloadLink.download = `${title.replace(/\s+/g, '_')}.${format || 'mp3'}`;
     document.body.appendChild(downloadLink);
     downloadLink.click();
@@ -208,7 +212,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     <div className="p-4 bg-accent/10 rounded-lg">
       <audio
         ref={audioRef}
-        src={safeAudioUrl}
+        src={audioSrc}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={handleEnded}
@@ -225,7 +229,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
           size="sm" 
           className="h-8 w-8 p-0" 
           onClick={togglePlay}
-          disabled={hasError && retryCount > 0}
+          disabled={hasError && retryCount > 1}
         >
           {isLoading ? (
             <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
@@ -246,7 +250,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             step={0.1}
             onValueChange={handleSliderChange}
             className="flex-1"
-            disabled={hasError && retryCount > 0}
+            disabled={hasError && retryCount > 1}
           />
           <div className="text-xs text-foreground/70 w-12">
             {formatTime(Math.floor(duration))}
@@ -259,7 +263,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             size="sm" 
             className="h-8 w-8 p-0" 
             onClick={toggleMute}
-            disabled={hasError && retryCount > 0}
+            disabled={hasError && retryCount > 1}
           >
             {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
           </Button>
@@ -269,7 +273,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             step={0.01}
             onValueChange={handleVolumeChange}
             className="w-16"
-            disabled={hasError && retryCount > 0}
+            disabled={hasError && retryCount > 1}
           />
         </div>
       </div>
@@ -310,7 +314,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         <div className="text-xs text-destructive mt-2">
           <div className="flex justify-between items-center">
             <span>Could not play this recording. The format may be unsupported.</span>
-            {retryCount === 0 && (
+            {retryCount < 2 && (
               <Button 
                 variant="outline" 
                 size="sm" 
@@ -318,7 +322,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                 onClick={handleRetry}
               >
                 <RefreshCw className="h-3 w-3" />
-                Try Fallback
+                Try Again
               </Button>
             )}
           </div>
