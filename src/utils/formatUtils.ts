@@ -1,4 +1,3 @@
-
 // Format seconds into MM:SS format
 export const formatTime = (seconds: number): string => {
   if (isNaN(seconds) || seconds < 0) {
@@ -38,13 +37,19 @@ export const normalizeAudioUrl = (audioUrl: string): string => {
   
   // For blob URLs, add a file extension hint to help the browser
   if (audioUrl.startsWith('blob:') && !audioUrl.includes('#')) {
-    return `${audioUrl}#.mp3`;
+    return `${audioUrl}#.wav`; // Use WAV as it's more widely supported
   }
   
   // Handle data URLs that might have incorrect MIME types
   if (audioUrl.startsWith('data:')) {
-    // Force audio to mp3 MIME type for better compatibility
-    return audioUrl.replace(/^data:audio\/[^;]+/, 'data:audio/mp3');
+    // Check if it already has a proper audio MIME type
+    if (audioUrl.startsWith('data:audio/')) {
+      // Keep the existing audio MIME type
+      return audioUrl;
+    }
+    
+    // Force to generic audio MIME type for better compatibility
+    return audioUrl.replace(/^data:[^;]+/, 'data:audio/wav');
   }
   
   return audioUrl;

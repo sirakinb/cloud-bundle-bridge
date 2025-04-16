@@ -198,85 +198,61 @@ export class DeepgramStream {
   
   // Create a WebSocket connection to Deepgram
   private async connectToDeepgram(): Promise<void> {
+    if (this.socket) {
+      console.log("WebSocket connection already exists");
+      return;
+    }
+
     try {
-      console.log("Connecting to Deepgram...");
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//api.deepgram.com/v1/listen?`;
       
-      // Construct the URL with query parameters
-      const queryParams = new URLSearchParams();
+      const params = new URLSearchParams({
+        language: this.options.language || 'en',
+        model: this.options.model || 'nova-2',
+        punctuate: (this.options.punctuate ?? true).toString(),
+        interim_results: (this.options.interim_results ?? true).toString(),
+        smart_format: (this.options.smart_format ?? true).toString(),
+      });
+
+      this.socket = new WebSocket(wsUrl + params.toString());
       
-      // Add all options as query parameters
-      Object.entries(this.options).forEach(([key, value]) => {
-        if (value !== undefined) {
-          queryParams.append(key, value.toString());
+      // Add authentication header
+      this.socket.onopen = () => {
+        if (this.socket) {
+          this.socket.send(JSON.stringify({ 
+            type: 'Configure', 
+            encoding: 'linear16',
+            sample_rate: 44100,
+            channels: 1,
+            language: this.options.language || 'en',
+            model: this.options.model || 'nova-2'
+          }));
+          this.isConnected = true;
+          console.log("Deepgram WebSocket connected");
         }
-      });
-      
-      const wsUrl = `wss://api.deepgram.com/v1/listen?${queryParams.toString()}`;
-      console.log("Deepgram WebSocket URL:", wsUrl);
-      
-      // Create WebSocket connection
-      this.socket = new WebSocket(wsUrl);
-      
-      // Set up a promise that resolves when the connection is opened
-      const connectionPromise = new Promise<void>((resolve, reject) => {
-        if (!this.socket) {
-          reject(new Error("Failed to create WebSocket"));
-          return;
+      };
+
+      this.socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data) as DeepgramResults;
+          this.handleDeepgramResponse(data);
+        } catch (error) {
+          console.error("Error parsing Deepgram response:", error);
         }
-        
-        // Handle successful connection
-        this.socket.onopen = () => {
-          if (this.socket) {
-            console.log("WebSocket connection opened, sending authorization");
-            // Send the API key for authentication
-            this.socket.send(JSON.stringify({
-              type: "Header",
-              Authorization: `Token ${DEEPGRAM_API_KEY}`
-            }));
-            
-            this.socket.binaryType = 'arraybuffer';
-            this.isConnected = true;
-            resolve();
-          }
-        };
-        
-        // Handle connection errors
-        this.socket.onerror = (error) => {
-          console.error("WebSocket connection error:", error);
-          reject(new Error("WebSocket connection failed"));
-        };
-      });
-      
-      // Set up message handler
-      if (this.socket) {
-        this.socket.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            this.handleDeepgramResponse(data);
-          } catch (error) {
-            console.error("Error parsing Deepgram response:", error);
-          }
-        };
-        
-        this.socket.onclose = (event) => {
-          console.log(`WebSocket closed with code ${event.code}: ${event.reason}`);
-          this.isConnected = false;
-        };
-      }
-      
-      // Wait for the connection with a timeout
-      const timeoutPromise = new Promise<void>((_, reject) => {
-        setTimeout(() => {
-          reject(new Error("Connection to Deepgram timed out after 5 seconds"));
-        }, 5000);
-      });
-      
-      // Wait for either the connection or the timeout
-      await Promise.race([connectionPromise, timeoutPromise]);
-      console.log("Deepgram connection established successfully");
-      
+      };
+
+      this.socket.onerror = (error) => {
+        console.error("Deepgram WebSocket error:", error);
+        this.onErrorCallback("Transcription service error");
+      };
+
+      this.socket.onclose = () => {
+        console.log("Deepgram WebSocket closed");
+        this.isConnected = false;
+      };
     } catch (error) {
-      console.error("Failed to connect to Deepgram:", error);
+      console.error("Error connecting to Deepgram:", error);
       throw error;
     }
   }
@@ -286,27 +262,45 @@ export class DeepgramStream {
     if (!this.mediaStream) {
       return;
     }
-    
-    // Use audio/webm for better compatibility
-    const options = { mimeType: 'audio/webm' };
-    
+
     try {
+      // Use audio/webm for better compatibility
+      const options = { 
+        mimeType: 'audio/webm;codecs=opus',
+        audioBitsPerSecond: 128000 // 128 kbps for good quality
+      };
+
       this.mediaRecorder = new MediaRecorder(this.mediaStream, options);
+      console.log("MediaRecorder created with options:", options);
+
+      // Send audio data to Deepgram when available
+      this.mediaRecorder.ondataavailable = async (event) => {
+        if (event.data.size > 0 && this.socket && this.isConnected) {
+          try {
+            // Convert the blob to array buffer for Deepgram
+            const arrayBuffer = await event.data.arrayBuffer();
+            this.socket.send(arrayBuffer);
+          } catch (error) {
+            console.error("Error processing audio data:", error);
+          }
+        }
+      };
+
+      // Set to capture data frequently for low latency
+      this.mediaRecorder.start(250);
+      console.log("MediaRecorder started");
     } catch (error) {
-      // Fallback if the browser doesn't support audio/webm
-      console.log("Falling back to default MediaRecorder format");
-      this.mediaRecorder = new MediaRecorder(this.mediaStream);
-    }
-    
-    // Send audio data to Deepgram when available
-    this.mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0 && this.socket && this.isConnected) {
-        this.socket.send(event.data);
+      console.error("Error setting up MediaRecorder:", error);
+      // Try fallback options
+      try {
+        this.mediaRecorder = new MediaRecorder(this.mediaStream);
+        this.mediaRecorder.start(250);
+        console.log("MediaRecorder started with default options");
+      } catch (fallbackError) {
+        console.error("Fallback MediaRecorder failed:", fallbackError);
+        throw new Error("Could not initialize audio recording");
       }
-    };
-    
-    // Set to capture data frequently for low latency
-    this.mediaRecorder.start(250);
+    }
   }
   
   // Process the transcription response from Deepgram

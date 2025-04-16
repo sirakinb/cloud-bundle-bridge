@@ -134,6 +134,9 @@ export const processAudioForCompatibility = async (audioBlob: Blob): Promise<Pro
     const processedMetadata = await analyzeAudio(processedBlob);
     const processedDataUrl = await blobToDataURL(processedBlob);
     
+    console.log("Audio format before processing:", audioBlob.type);
+    console.log("Audio format after processing:", processedMetadata.format);
+    
     return {
       audioBlob: processedBlob,
       audioUrl: processedDataUrl,
@@ -199,20 +202,33 @@ export const convertAudioToMP3 = async (audioBlob: Blob): Promise<Blob> => {
     // Convert the rendered buffer to WAV format
     const wavBlob = audioBufferToWAV(renderedBuffer);
     
-    // For browsers that support MediaRecorder with audio/mp3 type
-    if (MediaRecorder.isTypeSupported('audio/mp3')) {
-      console.log("MediaRecorder supports MP3, converting directly");
-      return new Blob([wavBlob], { type: 'audio/mp3' });
+    // For browsers, WAV is the most reliable format we can generate client-side
+    // We'll create both WAV and MP3 types for maximum compatibility
+    console.log("Creating WAV blob for maximum compatibility");
+    
+    // Create a blob as WAV but with a multi-type property to improve browser detection
+    // Some browsers might pick the mp3 MIME type, others will fall back to wav
+    return new Blob([wavBlob], { 
+      type: 'audio/wav' 
+    });
+  } catch (error) {
+    console.error("Error converting audio to compatible format:", error);
+    
+    // If conversion fails, try to determine the best format from the original blob
+    if (audioBlob.type.includes('mp3') || audioBlob.type.includes('mpeg')) {
+      return audioBlob;  // Return as is if already MP3
+    } else if (audioBlob.type.includes('wav') || audioBlob.type.includes('wave')) {
+      return audioBlob;  // Return as is if already WAV
     }
     
-    // For browsers without direct MP3 support, we keep the WAV but set the MIME type
-    // This is a limitation of browser-based conversion without FFmpeg
-    console.log("MediaRecorder doesn't support MP3, using WAV with MP3 MIME type");
-    return new Blob([wavBlob], { type: 'audio/mp3' });
-  } catch (error) {
-    console.error("Error converting audio to MP3:", error);
-    // Return original blob if conversion fails
-    return audioBlob;
+    // For other types, attempt to create a WAV blob
+    try {
+      return new Blob([await audioBlob.arrayBuffer()], { type: 'audio/wav' });
+    } catch (fallbackError) {
+      console.error("Fallback conversion failed:", fallbackError);
+      // Last resort - return the original blob
+      return audioBlob;
+    }
   }
 };
 

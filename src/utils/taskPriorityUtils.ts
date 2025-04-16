@@ -1,12 +1,10 @@
-
-import { Task, PomodoroSession } from "@/contexts/TaskContext";
-import { differenceInDays, isBefore, isAfter, isSameDay, startOfDay, addMinutes, format, addDays, parse, parseISO, isValid } from "date-fns";
+import { differenceInDays, isBefore, isAfter, isSameDay, startOfDay, addMinutes, format, addDays, parse, parseISO, isValid, isWithinInterval } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 
 // Score factors - can be adjusted to change prioritization weighting
-const URGENCY_WEIGHT = 3;
-const DEADLINE_WEIGHT = 2;
-const DIFFICULTY_WEIGHT = 1;
+const URGENCY_WEIGHT = 5;
+const DEADLINE_WEIGHT = 3;
+const DIFFICULTY_WEIGHT = 2;
 
 type PriorityScore = {
   task: Task;
@@ -14,6 +12,37 @@ type PriorityScore = {
   category: 'critical' | 'high' | 'medium' | 'low';
   deadlineProximity: number; // Days until deadline, 0 for today
 };
+
+interface UnavailableTimeBlock {
+  days: string[];
+  startTime: string;
+  endTime: string;
+}
+
+interface Task {
+  id: string;
+  name: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  completed: boolean;
+  estimatedDuration?: number;
+  allowMoreThanFourPomodoros?: boolean;
+  urgency: 'high' | 'medium' | 'low';
+  dueDate: Date;
+  taskType: string;
+  pomodoroSessions: PomodoroSession[];
+  duration?: number;
+}
+
+interface PomodoroSession {
+  id: string;
+  taskId: string;
+  taskName: string;
+  startTime: Date;
+  endTime: Date;
+  completed: boolean;
+  sessionNumber: number;
+  totalSessions: number;
+}
 
 // Calculate difficulty score (1-3)
 export const getDifficultyScore = (difficulty: 'easy' | 'medium' | 'hard'): number => {
@@ -89,12 +118,50 @@ export const calculatePriorityScore = (task: Task): PriorityScore => {
   };
 };
 
-// Get prioritized tasks sorted by score
+// Get prioritized tasks with scores
 export const getPrioritizedTasks = (tasks: Task[]): PriorityScore[] => {
+  const today = new Date();
+  
   return tasks
-    .filter(task => !task.completed)
-    .map(calculatePriorityScore)
-    .sort((a, b) => b.score - a.score);
+    .map(task => {
+      let score = 0;
+      let deadlineProximity = task.dueDate ? differenceInDays(task.dueDate, today) : 14;
+      
+      // Urgency score (0-5)
+      const urgencyScores = { high: 5, medium: 3, low: 1 };
+      score += (urgencyScores[task.urgency] || 1) * URGENCY_WEIGHT;
+      
+      // Deadline proximity score (0-5)
+      if (task.dueDate) {
+        const daysUntilDue = Math.max(0, deadlineProximity);
+        score += ((5 - Math.min(5, daysUntilDue)) * DEADLINE_WEIGHT);
+      }
+      
+      // Difficulty score (0-5)
+      const difficultyScores = { hard: 5, medium: 3, easy: 1 };
+      score += (difficultyScores[task.difficulty] || 1) * DIFFICULTY_WEIGHT;
+      
+      // Determine priority category
+      let category: 'critical' | 'high' | 'medium' | 'low';
+      if (score >= 35) category = 'critical';
+      else if (score >= 25) category = 'high';
+      else if (score >= 15) category = 'medium';
+      else category = 'low';
+      
+      return {
+        task,
+        score,
+        category,
+        deadlineProximity
+      };
+    })
+    .sort((a, b) => {
+      // First sort by score (descending)
+      if (b.score !== a.score) return b.score - a.score;
+      
+      // If scores are equal, sort by deadline proximity (ascending)
+      return a.deadlineProximity - b.deadlineProximity;
+    });
 };
 
 // Get optimized daily workload
@@ -151,186 +218,182 @@ const POMODORO_LENGTH = 25; // Standard pomodoro length in minutes
 const BREAK_LENGTH = 5; // Standard break length in minutes
 const LONG_BREAK_LENGTH = 15; // Length of longer breaks in minutes
 const POMODOROS_BEFORE_LONG_BREAK = 4; // Number of pomodoros before a long break
+const MAX_POMODOROS_PER_DAY = 8; // Maximum number of pomodoros per day
+const MAX_SEQUENTIAL_POMODOROS = 4; // Maximum number of pomodoros in sequence
+
+// Check if a time slot is already occupied by another session
+const isTimeSlotOccupied = (
+  time: Date,
+  duration: number,
+  existingSessions: PomodoroSession[]
+): boolean => {
+  const endTime = addMinutes(time, duration);
+  
+  return existingSessions.some(session => {
+    return (
+      (isWithinInterval(time, { start: session.startTime, end: session.endTime }) ||
+       isWithinInterval(endTime, { start: session.startTime, end: session.endTime }) ||
+       isWithinInterval(session.startTime, { start: time, end: endTime }))
+    );
+  });
+};
 
 // Schedule Pomodoro sessions based on prioritized tasks
 export const schedulePomodoroSessions = (
-  tasks: Task[],
-  isTimeUnavailable: (date: Date) => boolean,
-  startDate: Date = new Date(),
-  daysToSchedule: number = 7
-): { task: Task, sessions: PomodoroSession[] }[] => {
-  const prioritizedTasks = getPrioritizedTasks(tasks)
-    .filter(({ task }) => !task.completed);
-  
-  // Result array containing tasks with their scheduled sessions
-  const scheduledTasks: { task: Task, sessions: PomodoroSession[] }[] = [];
-  
-  // Start scheduling from the beginning of the provided start date
+  prioritizedTasks: PriorityScore[],
+  unavailableTimes: UnavailableTimeBlock[],
+  startDate: Date = new Date()
+): PomodoroSession[] => {
+  const sessions: PomodoroSession[] = [];
   let currentDate = startOfDay(startDate);
-  let endSchedulingDate = addDays(currentDate, daysToSchedule);
-  
-  // Track how many pomodoros have been scheduled before a long break
-  let pomodorosUntilLongBreak = POMODOROS_BEFORE_LONG_BREAK;
-  
-  // Function to find next available time slot
-  const findNextAvailableSlot = (fromDate: Date, duration: number): Date | null => {
-    // Create a copy of the date to avoid modifying the original
-    let testDate = new Date(fromDate);
-    let maxAttempts = 336; // Try slots for up to 7 days (48 slots per day * 7 days)
-    let attempts = 0;
-    
-    // Start searching from 8am
-    if (testDate.getHours() < 8) {
-      testDate.setHours(8, 0, 0, 0);
-    }
-    
-    // Stay within scheduling period
-    if (isAfter(testDate, endSchedulingDate)) {
-      return null;
-    }
-    
-    while (attempts < maxAttempts) {
-      attempts++;
-      
-      // If we're past 8pm, move to 8am the next day
-      if (testDate.getHours() >= 20) {
-        testDate = addDays(testDate, 1);
-        testDate.setHours(8, 0, 0, 0);
-        
-        // Check if we're still within the scheduling period
-        if (isAfter(testDate, endSchedulingDate)) {
-          return null;
+  let currentTime = startDate;
+  let pomodorosToday = 0;
+  let sequentialPomodoros = 0;
+
+  for (const { task } of prioritizedTasks) {
+    if (task.completed) continue;
+
+    // Calculate number of pomodoros needed based on estimated duration
+    const pomodorosNeeded = calculatePomodorosNeeded(task);
+    let pomodorosScheduled = 0;
+
+    while (pomodorosScheduled < pomodorosNeeded) {
+      // Check if we need to move to next day
+      if (pomodorosToday >= MAX_POMODOROS_PER_DAY) {
+        currentDate = addDays(currentDate, 1);
+        currentTime = startOfDay(currentDate);
+        pomodorosToday = 0;
+        sequentialPomodoros = 0;
+      }
+
+      // Find next available time slot that's not occupied
+      while (
+        isTimeSlotUnavailable(currentTime, unavailableTimes) ||
+        isTimeSlotOccupied(currentTime, POMODORO_LENGTH, sessions)
+      ) {
+        currentTime = addMinutes(currentTime, 30); // Try next 30-minute slot
+        if (format(currentTime, 'HH:mm') === '00:00') {
+          // If we've reached midnight, move to next day
+          currentDate = addDays(currentDate, 1);
+          currentTime = startOfDay(currentDate);
+          pomodorosToday = 0;
+          sequentialPomodoros = 0;
         }
       }
-      
-      // Check if this time slot is available
-      const endTime = addMinutes(testDate, duration);
-      let slotIsAvailable = true;
-      
-      // Check every 5 minutes during the proposed session to make sure none are unavailable
-      let checkTime = new Date(testDate);
-      while (isBefore(checkTime, endTime)) {
-        if (isTimeUnavailable(checkTime)) {
-          slotIsAvailable = false;
-          break;
-        }
-        checkTime = addMinutes(checkTime, 5);
-      }
-      
-      // Also check for overlaps with already scheduled sessions
-      for (const { sessions } of scheduledTasks) {
-        for (const session of sessions) {
-          if (
-            (isBefore(testDate, session.endTime) && isAfter(endTime, session.startTime)) ||
-            isSameDay(testDate, session.startTime)
-          ) {
-            // There's an overlap
-            slotIsAvailable = false;
-            // Move past this session
-            testDate = new Date(session.endTime);
-            break;
+
+      // Schedule a pomodoro session
+      const session: PomodoroSession = {
+        id: crypto.randomUUID(),
+        taskId: task.id,
+        taskName: task.name,
+        startTime: currentTime,
+        endTime: addMinutes(currentTime, POMODORO_LENGTH),
+        completed: false,
+        sessionNumber: pomodorosScheduled + 1,
+        totalSessions: pomodorosNeeded
+      };
+      sessions.push(session);
+      pomodorosScheduled++;
+      pomodorosToday++;
+      sequentialPomodoros++;
+
+      // Move to next time slot
+      currentTime = session.endTime;
+
+      // Add appropriate break
+      if (pomodorosScheduled < pomodorosNeeded) { // Only add break if not the last pomodoro
+        if (sequentialPomodoros === POMODOROS_BEFORE_LONG_BREAK) {
+          // Add long break if we've completed 4 pomodoros
+          if (!isTimeSlotUnavailable(currentTime, unavailableTimes) && 
+              !isTimeSlotOccupied(currentTime, LONG_BREAK_LENGTH, sessions)) {
+            sessions.push({
+              id: crypto.randomUUID(),
+              taskId: task.id,
+              taskName: `${task.name} - Long Break`,
+              startTime: currentTime,
+              endTime: addMinutes(currentTime, LONG_BREAK_LENGTH),
+              completed: false,
+              sessionNumber: 0,
+              totalSessions: 0
+            });
+            currentTime = addMinutes(currentTime, LONG_BREAK_LENGTH);
+          }
+          sequentialPomodoros = 0;
+        } else {
+          // Add short break
+          if (!isTimeSlotUnavailable(currentTime, unavailableTimes) && 
+              !isTimeSlotOccupied(currentTime, BREAK_LENGTH, sessions)) {
+            sessions.push({
+              id: crypto.randomUUID(),
+              taskId: task.id,
+              taskName: `${task.name} - Short Break`,
+              startTime: currentTime,
+              endTime: addMinutes(currentTime, BREAK_LENGTH),
+              completed: false,
+              sessionNumber: 0,
+              totalSessions: 0
+            });
+            currentTime = addMinutes(currentTime, BREAK_LENGTH);
           }
         }
-        if (!slotIsAvailable) break;
       }
-      
-      if (slotIsAvailable) {
-        return testDate;
-      }
-      
-      // Move to the next 15-minute increment
-      testDate = addMinutes(testDate, 15);
-    }
-    
-    // If we've tried all possible slots and none are available
-    return null;
-  };
-  
-  // Schedule each task based on priority
-  for (const { task } of prioritizedTasks) {
-    const taskSessions: PomodoroSession[] = [];
-    
-    // Calculate how many pomodoros we need based on task duration and difficulty
-    let totalPomodorosNeeded = Math.ceil(task.duration / POMODORO_LENGTH);
-    
-    // For hard or long tasks, add extra pomodoros for breaks and potential overruns
-    if (task.difficulty === 'hard' || task.duration > 60) {
-      totalPomodorosNeeded = Math.ceil(totalPomodorosNeeded * 1.25);
-    }
-    
-    // Determine max pomodoros per day based on task urgency
-    let maxPomodorosPerDay = 4; // Default
-    if (task.urgency === 'high') maxPomodorosPerDay = 6;
-    else if (task.urgency === 'medium') maxPomodorosPerDay = 5;
-    
-    // Set our starting point for scheduling
-    let schedulingDate = new Date(currentDate);
-    let pomodorosScheduledToday = 0;
-    let pomodorosScheduled = 0;
-    
-    // Schedule all needed pomodoros
-    while (pomodorosScheduled < totalPomodorosNeeded) {
-      // Check if we need to start a new day
-      if (pomodorosScheduledToday >= maxPomodorosPerDay) {
-        schedulingDate = addDays(schedulingDate, 1);
-        schedulingDate.setHours(8, 0, 0, 0); // Start at 8am
-        pomodorosScheduledToday = 0;
-        pomodorosUntilLongBreak = POMODOROS_BEFORE_LONG_BREAK; // Reset long break counter for new day
-      }
-      
-      // Determine break type (regular or long)
-      const breakDuration = pomodorosUntilLongBreak === 1 ? LONG_BREAK_LENGTH : BREAK_LENGTH;
-      
-      // Find next available slot for this pomodoro + break
-      const sessionStartTime = findNextAvailableSlot(schedulingDate, POMODORO_LENGTH + breakDuration);
-      
-      if (!sessionStartTime) {
-        // If we couldn't find any slots in the scheduling period, stop trying
-        break;
-      }
-      
-      // Set the end time for this pomodoro
-      const sessionEndTime = addMinutes(sessionStartTime, POMODORO_LENGTH);
-      
-      // Create the pomodoro session
-      const session: PomodoroSession = {
-        id: Math.random().toString(36).substring(2, 9),
-        taskId: task.id,
-        startTime: sessionStartTime,
-        endTime: sessionEndTime,
-        completed: false
-      };
-      
-      taskSessions.push(session);
-      pomodorosScheduled++;
-      pomodorosScheduledToday++;
-      pomodorosUntilLongBreak--;
-      
-      // Reset long break counter if needed
-      if (pomodorosUntilLongBreak === 0) {
-        pomodorosUntilLongBreak = POMODOROS_BEFORE_LONG_BREAK;
-      }
-      
-      // Set the next scheduling start time to after this pomodoro + break
-      schedulingDate = addMinutes(sessionEndTime, breakDuration);
-    }
-    
-    // Only add tasks where we were able to schedule at least one pomodoro
-    if (taskSessions.length > 0) {
-      scheduledTasks.push({
-        task,
-        sessions: taskSessions
-      });
-      
-      // Show a success toast notification
-      toast({
-        title: "Task scheduled",
-        description: `${taskSessions.length} focus sessions scheduled for "${task.name}"`,
-      });
     }
   }
+
+  return sessions;
+};
+
+// Calculate number of Pomodoro sessions needed based on duration
+const calculatePomodorosNeeded = (task: Task): number => {
+  if (task.estimatedDuration) {
+    // Calculate number of full Pomodoros needed
+    return Math.ceil(task.estimatedDuration / POMODORO_LENGTH);
+  }
   
-  return scheduledTasks;
+  // Fallback to difficulty-based calculation if no duration specified
+  const difficultyMultipliers = {
+    easy: 1,
+    medium: 2,
+    hard: 4
+  };
+  
+  return difficultyMultipliers[task.difficulty] || 1;
+};
+
+const getDailyTaskPomodoroCount = (
+  sessions: PomodoroSession[],
+  taskId: string,
+  date: Date
+): number => {
+  return sessions.filter(session => 
+    session.taskId === taskId &&
+    session.completed === false &&
+    isSameDay(session.startTime, date)
+  ).length;
+};
+
+const isTimeSlotUnavailable = (
+  time: Date,
+  unavailableTimes: UnavailableTimeBlock[]
+): boolean => {
+  const dayOfWeek = format(time, 'EEEE').toLowerCase();
+  const timeString = format(time, 'HH:mm');
+  
+  return unavailableTimes.some(block => {
+    if (block.days.includes(dayOfWeek)) {
+      const blockStart = parse(block.startTime, 'HH:mm', time);
+      const blockEnd = parse(block.endTime, 'HH:mm', time);
+      const currentTime = parse(timeString, 'HH:mm', time);
+      
+      // Set the dates to be the same for proper comparison
+      blockStart.setFullYear(time.getFullYear(), time.getMonth(), time.getDate());
+      blockEnd.setFullYear(time.getFullYear(), time.getMonth(), time.getDate());
+      currentTime.setFullYear(time.getFullYear(), time.getMonth(), time.getDate());
+      
+      return isWithinInterval(currentTime, { start: blockStart, end: blockEnd });
+    }
+    return false;
+  });
 };
 
 // Apply scheduled Pomodoro sessions to tasks
@@ -358,3 +421,53 @@ export const applyScheduledPomodoros = (
   
   return updatedTasks;
 };
+
+export function generatePomodoroSessions(taskId: string, startDate: Date): PomodoroSession[] {
+  const sessions: PomodoroSession[] = [];
+  let currentTime = startDate;
+
+  for (let i = 0; i < MAX_POMODOROS_PER_DAY; i++) {
+    const session: PomodoroSession = {
+      id: crypto.randomUUID(),
+      taskId: taskId,
+      taskName: '',
+      startTime: currentTime,
+      endTime: addMinutes(currentTime, POMODORO_LENGTH),
+      completed: false,
+      sessionNumber: i + 1,
+      totalSessions: MAX_POMODOROS_PER_DAY
+    };
+    sessions.push(session);
+    currentTime = addMinutes(currentTime, POMODORO_LENGTH);
+
+    // Add a long break after every 4 pomodoros
+    if ((i + 1) % POMODOROS_BEFORE_LONG_BREAK === 0) {
+      sessions.push({
+        id: crypto.randomUUID(),
+        taskId: taskId,
+        taskName: 'Long Break',
+        startTime: currentTime,
+        endTime: addMinutes(currentTime, LONG_BREAK_LENGTH),
+        completed: false,
+        sessionNumber: 0,
+        totalSessions: 0
+      });
+      currentTime = addMinutes(currentTime, LONG_BREAK_LENGTH);
+    } else if (i < MAX_POMODOROS_PER_DAY - 1) {
+      // Add a short break between pomodoros (except after the last one)
+      sessions.push({
+        id: crypto.randomUUID(),
+        taskId: taskId,
+        taskName: 'Short Break',
+        startTime: currentTime,
+        endTime: addMinutes(currentTime, BREAK_LENGTH),
+        completed: false,
+        sessionNumber: 0,
+        totalSessions: 0
+      });
+      currentTime = addMinutes(currentTime, BREAK_LENGTH);
+    }
+  }
+
+  return sessions;
+}

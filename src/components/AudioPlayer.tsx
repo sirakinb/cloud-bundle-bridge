@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -293,9 +292,13 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         onCanPlay={handleCanPlay}
         preload="metadata"
       >
-        <source src={audioSrc} type="audio/mp3" />
         <source src={audioSrc} type="audio/mpeg" />
+        <source src={audioSrc} type="audio/mp3" />
         <source src={audioSrc} type="audio/wav" />
+        <source src={audioSrc} type="audio/webm" />
+        <source src={audioSrc} type="audio/ogg" />
+        <source src={audioSrc} type="audio/x-m4a" />
+        <source src={audioSrc} type="audio/aac" />
         Your browser does not support the audio element.
       </audio>
       
